@@ -25,3 +25,20 @@ describe('Production HTTP client', () => {
     await expect(api.getCurrentAccount()).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
   });
 });
+
+
+describe('Recipe repair and authenticated replay', () => {
+  it('sends repair fields to PATCH and the explicitly selected session to replay', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'recipe-id' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetcher);
+    const api = new HttpApiClient(async () => 'local-test-token');
+    const patch = { sampleUrl: 'https://example.org/job', selector: 'article', changeSummary: 'Updated layout' };
+    await api.repairRecipe('recipe-id', patch);
+    expect(fetcher.mock.calls[0][0]).toBe('/api/v1/recipes/recipe-id');
+    expect(fetcher.mock.calls[0][1].method).toBe('PATCH');
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual(patch);
+    fetcher.mockResolvedValue(new Response(JSON.stringify({ id: 'recipe-id' }), { status: 200 }));
+    await api.performRecipeAction('recipe-id', { action: 'replay', selectedSessionDomain: 'example.org' });
+    expect(JSON.parse(fetcher.mock.calls[1][1].body)).toEqual({ action: 'replay', selectedSessionDomain: 'example.org' });
+  });
+});

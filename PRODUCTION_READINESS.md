@@ -7,7 +7,7 @@
 - Neon CLI authorization succeeded using an ignored directory with restricted Windows permissions. The available organization is Vercel-managed; Neon rejected creating the dedicated Daleel project there. A directly managed free Neon organization/project is required.
 - Added durable deletion manifests, immediate capability revocation, cleanup retries and recovery of abandoned export uploads.
 - Added recipe repair versions, renewed preview/approval, explicitly selected authenticated replay, actual history comparison and Python script downloads.
-- Local verification: 36 backend checks passed (10 PostgreSQL checks require CI), 11 frontend checks passed, lint/type checks and production build passed. Live-provider and deployed checks remain pending.
+- Local verification: 40 backend checks passed (10 PostgreSQL checks require CI), 12 frontend checks passed, lint/type checks and production build passed. Live-provider and deployed checks remain pending.
 
 ## Completed this pass
 

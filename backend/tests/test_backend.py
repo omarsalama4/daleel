@@ -455,3 +455,40 @@ def test_authenticated_recipe_replay_uses_only_selected_workspace_session(client
     wrong = client.post(url, json={"action": "replay", "selectedSessionDomain": "other.org"})
     assert wrong.json()["status"] == "needs_review"
     assert len(seen) == 2
+
+
+@pytest.mark.parametrize("title,description,language,direction", [
+    ("AI Engineer", "Build models for reliable search", "en", "ltr"),
+    ("مهندس ذكاء اصطناعي", "تطوير نماذج بحث موثوقة", "ar", "rtl"),
+    ("Ingénieur intelligence artificielle", "Développer des modèles fiables", "fr", "ltr"),
+])
+def test_unicode_evidence_preserves_source_and_missing_fields(title, description, language, direction):
+    from daleel.agents import deterministic_extract
+    page = parse_page({"url": "https://example.org/job", "title": title,
+        "html": f'<html lang="{language}"><body><h1>{title}</h1><p>{description}</p></body></html>',
+        "bytes": 200, "status": 200})
+    fields = [{"key": "title", "required": True}, {"key": "description", "required": True},
+        {"key": "salary", "required": False}]
+    result = verify_result(deterministic_extract(page, fields, title), page, fields,
+        {"id": uid(), "relevance": "balanced"})
+    assert result["values"]["title"]["value"] == title
+    assert description in result["values"]["description"]["value"]
+    assert result["values"]["salary"]["evidenceState"] == "unknown"
+    assert result["language"] == language and result["direction"] == direction
+    assert result["sourceUrl"] == page["url"] and result["evidenceCount"] == 2
+
+
+def test_recovery_removes_abandoned_upload_after_process_crash(client, app):
+    from daleel.db import put
+    run = new_run(client)
+    wid = client.get("/api/v1/me").json()["workspace"]["id"]
+    with app.state.database.session(wid) as db:
+        pending = put(db, wid, "export", {"state": "uploading", "createdAt": "2000-01-01T00:00:00+00:00",
+            "artifactBytes": 7, "downloadTokenHash": "", "expiresAt": "2000-01-01T00:00:00+00:00"}, parent=run["id"])
+        export_id = pending.id
+    app.state.artifacts.write(wid, export_id, b"partial", "text/plain")
+    asyncio.run(app.state.runtime.recover())
+    with app.state.database.session(wid) as db:
+        assert resource(db, wid, export_id) is None
+    with pytest.raises(FileNotFoundError):
+        app.state.artifacts.read(wid, export_id)
