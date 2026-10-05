@@ -1,0 +1,17 @@
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/.vite/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.py[cod]
+.env
+.env.*
+!.env.example
+*.local
+*.log
+.DS_Store
+Thumbs.db
+

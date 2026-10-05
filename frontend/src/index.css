@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-canvas: #F8F9F8;
+    --color-surface: #FFFFFF;
+    --color-subtle-surface: #F2F4F3;
+    --color-ink: #202826;
+    --color-muted-ink: #56615E;
+    --color-line: #DCE2DF;
+    --color-deep-teal: #225A55;
+    --color-deep-teal-hover: #1A4642;
+    --color-deep-teal-subtle: #EEF3F2;
+    --color-deep-teal-ring: rgba(34, 90, 85, 0.25);
+    --color-danger: #9B2C2C;
+    --color-danger-subtle: #FFF5F5;
+    --color-danger-line: #FEB2B2;
+
+    font-family: 'Geist', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--color-ink);
+    background-color: var(--color-canvas);
+    color-scheme: light;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Focus ring for WCAG 2.2 AA accessibility */
+  *:focus-visible {
+    outline: 2px solid var(--color-deep-teal);
+    outline-offset: 2px;
+  }
+
+  /* 44px minimum target for buttons and interactive controls */
+  .min-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Motion 1/10: strict reduced motion compliance */
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Custom utility colors */
+.bg-canvas { background-color: var(--color-canvas); }
+.bg-surface { background-color: var(--color-surface); }
+.bg-subtle-surface { background-color: var(--color-subtle-surface); }
+.bg-deep-teal { background-color: var(--color-deep-teal); }
+.bg-deep-teal-hover:hover { background-color: var(--color-deep-teal-hover); }
+.bg-deep-teal-subtle { background-color: var(--color-deep-teal-subtle); }
+.text-ink { color: var(--color-ink); }
+.text-muted-ink { color: var(--color-muted-ink); }
+.text-deep-teal { color: var(--color-deep-teal); }
+.border-line { border-color: var(--color-line); }
+.border-deep-teal { border-color: var(--color-deep-teal); }
+
+/* Typography specification per DESIGN.md */
+.page-title {
+  font-size: 1.75rem; /* 28px */
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--color-ink);
+}
+
+.section-title {
+  font-size: 1.125rem; /* 18px */
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+}
+
+/* Monospace fonts for technical values */
+.font-mono-tech {
+  font-family: 'Geist Mono', "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+}
+
+/* Calm skeleton box without perpetual pulse */
+.skeleton-box {
+  background-color: var(--color-subtle-surface);
+  border-radius: 4px;
+}
+
+/* Query envelope constraint per DESIGN.md (760-880px) */
+.form-envelope {
+  max-width: 840px;
+}
+
+/* Arabic / RTL excerpt rendering */
+[dir="auto"], [dir="rtl"] {
+  unicode-bidi: plaintext;
+}

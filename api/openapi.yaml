@@ -1,0 +1,775 @@
+openapi: 3.1.0
+info:
+  title: Daleel Frontend API
+  version: 1.0.0
+  description: >
+    Frontend contract for the private hosted beta. Neon Managed Better Auth owns
+    sign-in. A frontend AuthAdapter supplies a credential verified by FastAPI.
+    FastAPI derives user and personal-workspace identity from verified claims;
+    browser-supplied owner/workspace identifiers are never authorization sources.
+    Auth routes remain with the Neon Auth SDK. Private resources are workspace scoped.
+servers:
+  - url: /api/v1
+security:
+  - NeonAccessToken: []
+tags:
+  - { name: Account }
+  - { name: Runs }
+  - { name: Workflows }
+  - { name: Recipes }
+  - { name: Sessions }
+  - { name: Sharing }
+  - { name: Settings }
+  - { name: Admin }
+paths:
+  /invitations/{inviteToken}:
+    get:
+      security: []
+      tags: [Account]
+      operationId: getInvitationPreview
+      summary: Validate a short-lived, single-use invitation link
+      description: Treat the path token as a secret; redact it from application logs, traces, referrers, and analytics.
+      parameters: [{ $ref: '#/components/parameters/InviteToken' }]
+      responses:
+        '200': { description: Minimal invitation preview, content: { application/json: { schema: { $ref: '#/components/schemas/InvitationPreview' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /invitations/{inviteToken}/claim:
+    post:
+      tags: [Account]
+      operationId: claimInvitation
+      description: Claim only after Neon Auth sign-in/sign-up. The verified account email must exactly match the invitation email.
+      parameters: [{ $ref: '#/components/parameters/InviteToken' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses:
+        '201': { description: Personal workspace provisioned, content: { application/json: { schema: { $ref: '#/components/schemas/CurrentAccount' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+  /me:
+    get:
+      tags: [Account]
+      operationId: getCurrentAccount
+      responses:
+        '200': { description: Account/workspace, content: { application/json: { schema: { $ref: '#/components/schemas/CurrentAccount' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /settings:
+    get:
+      tags: [Settings]
+      operationId: getSettings
+      responses:
+        '200': { description: Settings and server ceilings, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+    patch:
+      tags: [Settings]
+      operationId: updateSettings
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SettingsPatch' } } } }
+      responses:
+        '200': { description: Updated settings, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
+        '422': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+  /usage:
+    get:
+      tags: [Settings]
+      operationId: getUsage
+      responses:
+        '200': { description: AI, non-AI and storage usage, content: { application/json: { schema: { $ref: '#/components/schemas/Usage' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /runs:
+    get:
+      tags: [Runs]
+      operationId: listRuns
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string, maxLength: 500 } }
+      responses:
+        '200': { description: Run list, content: { application/json: { schema: { $ref: '#/components/schemas/RunPage' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Runs]
+      operationId: createRun
+      description: Approval mode returns a plan awaiting approval; Autonomous starts within the submitted and server-enforced scope.
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateRun' } } } }
+      responses:
+        '201': { description: Plan/run created, content: { application/json: { schema: { $ref: '#/components/schemas/Run' } } }}
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+  /runs/{runId}:
+    parameters: [{ $ref: '#/components/parameters/RunId' }]
+    get:
+      tags: [Runs]
+      operationId: getRun
+      responses:
+        '200': { description: Persisted run snapshot, content: { application/json: { schema: { $ref: '#/components/schemas/Run' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /runs/{runId}/plan:
+    parameters: [{ $ref: '#/components/parameters/RunId' }]
+    get:
+      tags: [Runs]
+      operationId: getRunPlan
+      responses:
+        '200': { description: Plan, content: { application/json: { schema: { $ref: '#/components/schemas/Plan' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+    patch:
+      tags: [Runs]
+      operationId: editRunPlan
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PlanPatch' } } } }
+      responses:
+        '200': { description: Updated plan, content: { application/json: { schema: { $ref: '#/components/schemas/Plan' } } }}
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+  /runs/{runId}/approve:
+    post:
+      tags: [Runs]
+      operationId: approveRun
+      parameters:
+        - { $ref: '#/components/parameters/RunId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      responses:
+        '202': { description: Run queued, content: { application/json: { schema: { $ref: '#/components/schemas/Run' } } }}
+        '409': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+  /runs/{runId}/actions:
+    post:
+      tags: [Runs]
+      operationId: performRunAction
+      parameters: [{ $ref: '#/components/parameters/RunId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RunAction' } } } }
+      responses:
+        '202': { description: Action accepted; completed findings are retained, content: { application/json: { schema: { $ref: '#/components/schemas/Run' } } }}
+        '409': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+  /runs/{runId}/activity:
+    get:
+      tags: [Runs]
+      operationId: getRunActivity
+      description: Poll every 3 seconds foreground/15 seconds background; stop for terminal runs. Sequence numbers reject stale updates.
+      parameters:
+        - { $ref: '#/components/parameters/RunId' }
+        - { name: afterSequence, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        '200': { description: Ordered event batch and latest run snapshot, content: { application/json: { schema: { $ref: '#/components/schemas/ActivityPage' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /runs/{runId}/findings:
+    get:
+      tags: [Runs]
+      operationId: listFindings
+      parameters:
+        - { $ref: '#/components/parameters/RunId' }
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: q, in: query, schema: { type: string, maxLength: 500 } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: sort, in: query, schema: { type: string, enum: [relevance, newest, oldest, source], default: relevance } }
+      responses:
+        '200': { description: Dynamic-schema findings, content: { application/json: { schema: { $ref: '#/components/schemas/FindingPage' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /runs/{runId}/findings/{findingId}:
+    get:
+      tags: [Runs]
+      operationId: getFinding
+      parameters:
+        - { $ref: '#/components/parameters/RunId' }
+        - { $ref: '#/components/parameters/FindingId' }
+      responses:
+        '200': { description: Finding and field evidence, content: { application/json: { schema: { $ref: '#/components/schemas/Finding' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /runs/{runId}/findings/{findingId}/feedback:
+    post:
+      tags: [Runs]
+      operationId: submitFindingFeedback
+      parameters:
+        - { $ref: '#/components/parameters/RunId' }
+        - { $ref: '#/components/parameters/FindingId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/FeedbackRequest' } } } }
+      responses:
+        '201': { description: Feedback recorded, content: { application/json: { schema: { $ref: '#/components/schemas/Feedback' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /runs/{runId}/coverage:
+    get:
+      tags: [Runs]
+      operationId: getRunCoverage
+      parameters:
+        - { $ref: '#/components/parameters/RunId' }
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200': { description: Canonical URL ledger and optional graph, content: { application/json: { schema: { $ref: '#/components/schemas/CoveragePage' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /runs/{runId}/exports:
+    post:
+      tags: [Runs]
+      operationId: createRunExport
+      parameters:
+        - { $ref: '#/components/parameters/RunId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExportRequest' } } } }
+      responses:
+        '202': { description: Export queued, content: { application/json: { schema: { $ref: '#/components/schemas/ExportJob' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /runs/{runId}/deletion:
+    post:
+      tags: [Runs]
+      operationId: deleteRun
+      parameters: [{ $ref: '#/components/parameters/RunId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses:
+        '202': { description: Run, findings, evidence, and shares queued for deletion, content: { application/json: { schema: { $ref: '#/components/schemas/DeletionJob' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /runs/{runId}/findings/{findingId}/deletion:
+    post:
+      tags: [Runs]
+      operationId: deleteFinding
+      parameters: [{ $ref: '#/components/parameters/RunId' }, { $ref: '#/components/parameters/FindingId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses:
+        '202': { description: Finding and evidence queued for deletion, content: { application/json: { schema: { $ref: '#/components/schemas/DeletionJob' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /exports/{exportId}:
+    get:
+      tags: [Runs]
+      operationId: getExport
+      parameters: [{ name: exportId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: Export progress and temporary download URL, content: { application/json: { schema: { $ref: '#/components/schemas/ExportJob' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /workflows:
+    get:
+      tags: [Workflows]
+      operationId: listWorkflows
+      parameters: [{ $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/PageSize' }]
+      responses:
+        '200': { description: Explicitly saved workflows, content: { application/json: { schema: { $ref: '#/components/schemas/WorkflowPage' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Workflows]
+      operationId: saveWorkflow
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SaveWorkflow' } } } }
+      responses:
+        '201': { description: Saved workflow, content: { application/json: { schema: { $ref: '#/components/schemas/Workflow' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /workflows/{workflowId}:
+    parameters: [{ $ref: '#/components/parameters/WorkflowId' }]
+    get:
+      tags: [Workflows]
+      operationId: getWorkflow
+      responses:
+        '200': { description: Workflow versions, content: { application/json: { schema: { $ref: '#/components/schemas/Workflow' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+    patch:
+      tags: [Workflows]
+      operationId: proposeWorkflowVersion
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/WorkflowPatch' } } } }
+      responses:
+        '200': { description: New proposed version, content: { application/json: { schema: { $ref: '#/components/schemas/Workflow' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [Workflows]
+      operationId: deleteWorkflow
+      responses:
+        '202': { description: Deletion queued, content: { application/json: { schema: { $ref: '#/components/schemas/DeletionJob' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /workflows/{workflowId}/duplicate:
+    post:
+      tags: [Workflows]
+      operationId: duplicateWorkflow
+      parameters: [{ $ref: '#/components/parameters/WorkflowId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses:
+        '201': { description: Independent copy in caller's workspace, content: { application/json: { schema: { $ref: '#/components/schemas/Workflow' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /workflows/{workflowId}/runs:
+    post:
+      tags: [Workflows]
+      operationId: runWorkflow
+      parameters: [{ $ref: '#/components/parameters/WorkflowId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RunWorkflow' } } } }
+      responses:
+        '201': { description: Run uses caller's policy and sessions, content: { application/json: { schema: { $ref: '#/components/schemas/Run' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /recipes:
+    get:
+      tags: [Recipes]
+      operationId: listRecipes
+      parameters: [{ $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/PageSize' }]
+      responses:
+        '200': { description: Recipes and validation status, content: { application/json: { schema: { $ref: '#/components/schemas/RecipePage' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /recipes/{recipeId}:
+    get:
+      tags: [Recipes]
+      operationId: getRecipe
+      parameters: [{ $ref: '#/components/parameters/RecipeId' }]
+      responses:
+        '200': { description: Structured read-only recipe actions, content: { application/json: { schema: { $ref: '#/components/schemas/Recipe' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /recipes/{recipeId}/actions:
+    post:
+      tags: [Recipes]
+      operationId: performRecipeAction
+      parameters: [{ $ref: '#/components/parameters/RecipeId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RecipeAction' } } } }
+      responses:
+        '202': { description: Preview/replay started or action recorded, content: { application/json: { schema: { $ref: '#/components/schemas/Recipe' } } }}
+        '409': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+  /sessions:
+    get:
+      tags: [Sessions]
+      operationId: listSessions
+      responses:
+        '200': { description: Owner's target-site session metadata; no secrets, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/SiteSession' } } } } } }}
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Sessions]
+      operationId: connectSite
+      description: Opens a hosted browser so the user performs normal login/MFA. Daleel never solves access challenges.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [domain], properties: { domain: { type: string, format: hostname } } } } } }
+      responses:
+        '201': { description: Browser connection reference, content: { application/json: { schema: { $ref: '#/components/schemas/SessionConnection' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /sessions/connections/{connectionId}/finish:
+    post:
+      tags: [Sessions]
+      operationId: finishSiteSessionConnection
+      parameters: [{ name: connectionId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: Validated target-site session metadata, content: { application/json: { schema: { $ref: '#/components/schemas/SiteSession' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+  /sessions/{sessionId}:
+    parameters: [{ $ref: '#/components/parameters/SessionId' }]
+    patch:
+      tags: [Sessions]
+      operationId: updateSiteSession
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [expiryMode], properties: { expiryMode: { type: string, enum: [no_expiry, custom] }, expiresAt: { type: [string, 'null'], format: date-time } } } } } }
+      responses:
+        '200': { description: Session metadata, content: { application/json: { schema: { $ref: '#/components/schemas/SiteSession' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [Sessions]
+      operationId: revokeSiteSession
+      responses:
+        '202': { description: Revocation queued; new use blocked immediately, content: { application/json: { schema: { $ref: '#/components/schemas/DeletionJob' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /shares:
+    get:
+      tags: [Sharing]
+      operationId: listSentShares
+      responses:
+        '200': { description: Owner's revocable grants, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/ShareGrant' } } } } } }}
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Sharing]
+      operationId: createShare
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateShare' } } } }
+      responses:
+        '201': { description: Read-only selected-resource grant, content: { application/json: { schema: { $ref: '#/components/schemas/ShareGrant' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /shares/{shareId}:
+    delete:
+      tags: [Sharing]
+      operationId: revokeShare
+      parameters: [{ name: shareId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '204': { description: Share revoked }
+        default: { $ref: '#/components/responses/Problem' }
+  /shared:
+    get:
+      tags: [Sharing]
+      operationId: listSharedWithMe
+      parameters: [{ $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/PageSize' }]
+      responses:
+        '200': { description: Read-only items explicitly shared with caller, content: { application/json: { schema: { $ref: '#/components/schemas/SharedPage' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /shared/{shareId}:
+    get:
+      tags: [Sharing]
+      operationId: getSharedItem
+      parameters: [{ name: shareId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: Selected item in read-only projection, content: { application/json: { schema: { $ref: '#/components/schemas/SharedItem' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /storage:
+    get:
+      tags: [Settings]
+      operationId: getStorage
+      responses:
+        '200': { description: Storage by category and quota, content: { application/json: { schema: { $ref: '#/components/schemas/Storage' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /deletions/{deletionId}:
+    get:
+      tags: [Settings]
+      operationId: getDeletion
+      parameters: [{ name: deletionId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: Deletion progress, content: { application/json: { schema: { $ref: '#/components/schemas/DeletionJob' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /admin/invitations:
+    get:
+      tags: [Admin]
+      operationId: listInvitations
+      responses:
+        '200': { description: Operator invitation list without secret tokens, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Invitation' } } } } } }}
+        default: { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [Admin]
+      operationId: inviteUser
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [email], properties: { email: { type: string, format: email }, displayName: { type: [string, 'null'] } } } } } }
+      responses:
+        '201': { description: Invite queued or sent, content: { application/json: { schema: { $ref: '#/components/schemas/Invitation' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /admin/invitations/{invitationId}/resend:
+    post:
+      tags: [Admin]
+      operationId: resendInvitation
+      parameters: [{ name: invitationId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses:
+        '202': { description: New email-bound token issued; old token revoked, content: { application/json: { schema: { $ref: '#/components/schemas/Invitation' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /admin/invitations/{invitationId}:
+    delete:
+      tags: [Admin]
+      operationId: revokeInvitation
+      parameters: [{ name: invitationId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '204': { description: Invitation revoked }
+        default: { $ref: '#/components/responses/Problem' }
+  /admin/workspaces:
+    get:
+      tags: [Admin]
+      operationId: listAdminWorkspaces
+      responses:
+        '200': { description: Operational metadata only; no private findings, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/AdminWorkspace' } } } } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /admin/workspaces/{workspaceId}:
+    get:
+      tags: [Admin]
+      operationId: getAdminWorkspace
+      parameters: [{ name: workspaceId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: Operational detail only; private content requires a separate audited grant, content: { application/json: { schema: { $ref: '#/components/schemas/AdminWorkspace' } } } }
+        default: { $ref: '#/components/responses/Problem' }
+  /admin/support-access:
+    post:
+      tags: [Admin]
+      operationId: requestAuditedSupportAccess
+      description: Persist the audit record before issuing a short-lived, read-only grant. Session secrets are never accessible.
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [workspaceId, itemId, purpose], properties: { workspaceId: { type: string, format: uuid }, itemId: { type: string, format: uuid }, purpose: { type: string, minLength: 10, maxLength: 500 } } } } } }
+      responses:
+        '201': { description: Audited support grant, content: { application/json: { schema: { $ref: '#/components/schemas/SupportGrant' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+  /admin/support-access/{grantId}/items/{itemId}:
+    get:
+      tags: [Admin]
+      operationId: getAuditedSupportItem
+      description: Returns only the selected item after the server confirms the short-lived audit grant. Never returns session secrets.
+      parameters:
+        - { name: grantId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: itemId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Audited, redacted support projection, content: { application/json: { schema: { $ref: '#/components/schemas/SharedItem' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        default: { $ref: '#/components/responses/Problem' }
+  /admin/access-audit:
+    get:
+      tags: [Admin]
+      operationId: listAccessAudit
+      parameters: [{ $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/PageSize' }]
+      responses:
+        '200': { description: Immutable operator access events, content: { application/json: { schema: { $ref: '#/components/schemas/AuditPage' } } }}
+        default: { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    NeonAccessToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        Short-lived JWT from the default Neon Auth client token() method. The
+        frontend sends it as a bearer credential. FastAPI verifies the EdDSA
+        signature against NEON_AUTH_JWKS_URL, checks issuer from NEON_AUTH_BASE_URL,
+        expiration and subject, then resolves account/workspace authorization on
+        the server. Tokens may remain valid for up to 15 minutes after browser
+        sign-out, so sensitive operations recheck active membership.
+  parameters:
+    InviteToken: { name: inviteToken, in: path, required: true, description: Redacted one-time invitation secret, schema: { type: string, minLength: 32, maxLength: 256 } }
+    Cursor: { name: cursor, in: query, schema: { type: [string, 'null'] } }
+    PageSize: { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+    IdempotencyKey: { name: Idempotency-Key, in: header, required: true, schema: { type: string, format: uuid } }
+    RunId: { name: runId, in: path, required: true, schema: { type: string, format: uuid } }
+    FindingId: { name: findingId, in: path, required: true, schema: { type: string, format: uuid } }
+    WorkflowId: { name: workflowId, in: path, required: true, schema: { type: string, format: uuid } }
+    RecipeId: { name: recipeId, in: path, required: true, schema: { type: string, format: uuid } }
+    SessionId: { name: sessionId, in: path, required: true, schema: { type: string, format: uuid } }
+  responses:
+    Problem:
+      description: Standard error envelope
+      content:
+        application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } }
+  schemas:
+    InvitationPreview:
+      type: object
+      required: [email, status, expiresAt]
+      properties: { email: { type: string, format: email }, inviterDisplayName: { type: [string, 'null'] }, status: { type: string, enum: [valid, accepted, expired, revoked, invalid] }, expiresAt: { type: [string, 'null'], format: date-time } }
+    Problem:
+      type: object
+      required: [type, title, status, code, traceId]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string, enum: [unauthenticated, forbidden, not_found, conflict, invalid_input, limit_exceeded, policy_blocked, provider_unavailable, quota_exhausted, rate_limited, internal_error] }
+        traceId: { type: string }
+        retryable: { type: boolean }
+        fieldErrors: { type: array, items: { type: object, required: [field, message], properties: { field: { type: string }, message: { type: string } } } }
+    CurrentAccount:
+      type: object
+      required: [account, workspace]
+      properties:
+        account: { type: object, required: [id, email, emailVerified], properties: { id: { type: string, format: uuid }, email: { type: string, format: email }, emailVerified: { type: boolean }, displayName: { type: [string, 'null'] } } }
+        workspace: { $ref: '#/components/schemas/Workspace' }
+    Workspace:
+      type: object
+      required: [id, name, role]
+      properties: { id: { type: string, format: uuid }, name: { type: string }, role: { type: string, const: owner }, dataRegion: { type: [string, 'null'] } }
+    Settings:
+      type: object
+      required: [workspace, limits, ceilings, authenticatedContentAllowed, providers, aiCaps]
+      properties:
+        workspace: { $ref: '#/components/schemas/Workspace' }
+        limits: { $ref: '#/components/schemas/Limits' }
+        ceilings: { $ref: '#/components/schemas/Limits' }
+        authenticatedContentAllowed: { type: boolean, default: false }
+        providers: { type: object, required: [primary, secondary, paidRoutesEnabled], properties: { primary: { type: string, const: groq }, secondary: { type: string, const: openrouter_free }, paidRoutesEnabled: { type: boolean }, status: { type: string, enum: [available, degraded, unavailable, unknown] } } }
+        aiCaps: { $ref: '#/components/schemas/AiCaps' }
+    SettingsPatch:
+      type: object
+      minProperties: 1
+      properties: { authenticatedContentAllowed: { type: boolean }, monthlyAiUsd: { type: number, minimum: 0, maximum: 5, multipleOf: 0.01, description: 'Zero disables model calls for future work; already incurred usage remains recorded.' } }
+    Limits:
+      type: object
+      required: [domains, pages, depth, minutes, retriesPerPage, downloadMb]
+      properties:
+        domains: { type: integer, minimum: 1, maximum: 20, default: 20 }
+        pages: { type: integer, minimum: 1, maximum: 500, default: 500 }
+        depth: { type: integer, minimum: 0, maximum: 5, default: 5 }
+        minutes: { type: integer, minimum: 1, maximum: 20, default: 20 }
+        retriesPerPage: { type: integer, minimum: 0, maximum: 2, default: 2 }
+        downloadMb: { type: integer, minimum: 1, maximum: 100, default: 100 }
+    AiCaps:
+      type: object
+      required: [perRunUsd, monthlyUsd]
+      properties: { perRunUsd: { type: number, minimum: 0, maximum: 0.25, multipleOf: 0.01, default: 0.25, description: 'Zero disables model calls for the run.' }, monthlyUsd: { type: number, minimum: 0, maximum: 5, multipleOf: 0.01, default: 5, description: 'Zero disables model calls for future work.' } }
+    Usage:
+      type: object
+      required: [period, aiReservedUsd, aiActualUsd, aiCapUsd, searchCredits, storageUsedMb, storageQuotaMb]
+      properties: { period: { type: string }, aiReservedUsd: { type: number }, aiActualUsd: { type: number }, aiCapUsd: { type: number }, searchCredits: { type: [integer, 'null'] }, storageUsedMb: { type: number }, storageQuotaMb: { type: number, const: 500 }, nonAiCostNotice: { type: string } }
+    RunMode: { type: string, enum: [approval, autonomous] }
+    CreateRun:
+      type: object
+      required: [query, mode, relevance, limits, aiUsageCapUsd]
+      properties:
+        query: { type: string, minLength: 1, maxLength: 10000 }
+        mode: { $ref: '#/components/schemas/RunMode', default: approval, description: Approval is selected by default in the UI; Autonomous is explicit per query. }
+        relevance: { type: string, enum: [broad, balanced, strict], default: balanced }
+        seedUrls: { type: array, maxItems: 100, items: { type: string, format: uri } }
+        limits: { $ref: '#/components/schemas/Limits' }
+        aiUsageCapUsd: { type: number, minimum: 0, maximum: 0.25, multipleOf: 0.01, description: Zero disables model calls for the run; use deterministic processing only where supported. }
+        workflowId: { type: [string, 'null'], format: uuid }
+    Plan:
+      type: object
+      required: [id, query, mode, fields, relevance, limits, state, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        query: { type: string }
+        mode: { $ref: '#/components/schemas/RunMode' }
+        requestedCriteria: { type: array, items: { type: string } }
+        inferredCriteria: { type: array, items: { type: string } }
+        candidateDomains: { type: array, items: { type: string } }
+        fields: { type: array, items: { type: object, required: [key, label, type, required], properties: { key: { type: string }, label: { type: string }, type: { type: string, enum: [text, number, date, url, boolean, list, object] }, required: { type: boolean } } } }
+        relevance: { type: string, enum: [broad, balanced, strict] }
+        limits: { $ref: '#/components/schemas/Limits' }
+        aiEstimateUsd: { type: number }
+        state: { type: string, enum: [generating, ready, awaiting_approval, approved, blocked, error] }
+        createdAt: { type: string, format: date-time }
+    PlanPatch:
+      type: object
+      minProperties: 1
+      properties: { requestedCriteria: { type: array, items: { type: string } }, inferredCriteria: { type: array, items: { type: string } }, candidateDomains: { type: array, maxItems: 20, items: { type: string } }, fields: { type: array, items: { type: object } }, relevance: { type: string, enum: [broad, balanced, strict] }, limits: { $ref: '#/components/schemas/Limits' } }
+    Run:
+      type: object
+      required: [id, query, mode, status, limits, sequence, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        query: { type: string }
+        mode: { $ref: '#/components/schemas/RunMode' }
+        status: { type: string, enum: [planning, awaiting_approval, queued, running, paused, partial, complete, failed, cancelled] }
+        stopReason: { type: [string, 'null'] }
+        plan: { $ref: '#/components/schemas/Plan' }
+        limits: { $ref: '#/components/schemas/Limits' }
+        usage: { type: object, additionalProperties: true }
+        findingCounts: { type: object, additionalProperties: { type: integer } }
+        sequence: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+    RunPage:
+      type: object
+      required: [items, nextCursor]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Run' } }, nextCursor: { type: [string, 'null'] } }
+    RunAction:
+      type: object
+      required: [action]
+      properties: { action: { type: string, enum: [pause, resume, cancel] } }
+    ActivityPage:
+      type: object
+      required: [events, latestSequence, run]
+      properties: { events: { type: array, items: { type: object, required: [sequence, type, occurredAt, message], properties: { sequence: { type: integer }, type: { type: string }, occurredAt: { type: string, format: date-time }, message: { type: string }, pageUrl: { type: [string, 'null'], format: uri }, safeAction: { type: [string, 'null'] } } } }, latestSequence: { type: integer }, run: { $ref: '#/components/schemas/Run' } }
+    FindingPage:
+      type: object
+      required: [items, nextCursor, fieldDefinitions, runStatus]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/FindingSummary' } }, nextCursor: { type: [string, 'null'] }, fieldDefinitions: { type: array, items: { type: object } }, runStatus: { type: string } }
+    FindingSummary:
+      type: object
+      required: [id, values, relevance, status, sourceUrl, evidenceCount]
+      properties:
+        id: { type: string, format: uuid }
+        values: { type: object, additionalProperties: { $ref: '#/components/schemas/FieldValue' } }
+        relevance: { type: object, required: [label, reason], properties: { label: { type: string, enum: [strong, possible, weak, uncertain] }, reason: { type: string } } }
+        status: { type: string, enum: [relevant, irrelevant, incomplete, unknown, duplicate] }
+        sourceUrl: { type: string, format: uri }
+        detailUrl: { type: [string, 'null'], format: uri }
+        evidenceCount: { type: integer }
+        duplicateGroupId: { type: [string, 'null'], format: uuid }
+    Finding:
+      allOf:
+        - { $ref: '#/components/schemas/FindingSummary' }
+        - type: object
+          properties:
+            evidence: { type: array, items: { $ref: '#/components/schemas/Evidence' } }
+            fetchedAt: { type: string, format: date-time }
+            language: { type: [string, 'null'] }
+            direction: { type: string, enum: [ltr, rtl, auto] }
+            duplicateSources: { type: array, items: { type: string, format: uri } }
+    FieldValue:
+      type: object
+      required: [evidenceState]
+      properties: { value: {}, evidenceState: { type: string, enum: [verified, unknown, unverified, conflict, unavailable] }, evidenceIds: { type: array, items: { type: string, format: uuid } } }
+    Evidence:
+      type: object
+      required: [id, fieldKey, sourceUrl, fetchedAt, excerpt, digest]
+      properties: { id: { type: string, format: uuid }, fieldKey: { type: string }, sourceUrl: { type: string, format: uri }, fetchedAt: { type: string, format: date-time }, excerpt: { type: string }, language: { type: [string, 'null'] }, direction: { type: string, enum: [ltr, rtl, auto] }, digest: { type: string }, artifactAvailable: { type: boolean } }
+    FeedbackRequest:
+      type: object
+      required: [classification]
+      properties: { classification: { type: string, enum: [relevant, irrelevant, incomplete, incorrect] }, correction: { type: [string, 'null'], maxLength: 5000 }, fieldKey: { type: [string, 'null'] } }
+    Feedback:
+      allOf: [{ $ref: '#/components/schemas/FeedbackRequest' }, { type: object, required: [id, createdAt], properties: { id: { type: string, format: uuid }, createdAt: { type: string, format: date-time } } }]
+    CoveragePage:
+      type: object
+      required: [counts, urls, nextCursor, graph]
+      properties: { counts: { type: object, additionalProperties: { type: integer } }, urls: { type: array, items: { type: object, required: [url, outcome, depth, attempts], properties: { url: { type: string, format: uri }, outcome: { type: string, enum: [discovered, fetched, skipped, failed, blocked, unprocessed] }, reason: { type: [string, 'null'] }, depth: { type: integer }, attempts: { type: integer }, httpStatus: { type: [integer, 'null'] } } } }, nextCursor: { type: [string, 'null'] }, graph: { type: object, additionalProperties: true } }
+    ExportRequest:
+      type: object
+      required: [format, scope]
+      properties: { format: { type: string, enum: [csv, json, clean_text, url_ledger] }, scope: { type: string, enum: [filtered, all, selected] }, findingIds: { type: array, items: { type: string, format: uuid } }, includeEvidence: { type: boolean, default: true }, includeRawArtifacts: { type: boolean, default: false } }
+    ExportJob:
+      type: object
+      required: [id, state, createdAt]
+      properties: { id: { type: string, format: uuid }, state: { type: string, enum: [queued, running, complete, failed] }, downloadUrl: { type: [string, 'null'], format: uri }, expiresAt: { type: [string, 'null'], format: date-time }, createdAt: { type: string, format: date-time } }
+    SaveWorkflow:
+      type: object
+      required: [runId, name]
+      properties: { runId: { type: string, format: uuid }, name: { type: string, minLength: 1, maxLength: 160 } }
+    WorkflowPatch:
+      type: object
+      minProperties: 1
+      properties: { name: { type: string, minLength: 1, maxLength: 160 }, changeSummary: { type: string, maxLength: 1000 }, plan: { $ref: '#/components/schemas/PlanPatch' } }
+    Workflow:
+      type: object
+      required: [id, name, currentVersion, versions, updatedAt]
+      properties: { id: { type: string, format: uuid }, name: { type: string }, currentVersion: { type: integer, minimum: 1 }, versions: { type: array, items: { type: object, additionalProperties: true } }, sharedReadOnly: { type: boolean, default: false }, updatedAt: { type: string, format: date-time } }
+    WorkflowPage:
+      type: object
+      required: [items, nextCursor]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Workflow' } }, nextCursor: { type: [string, 'null'] } }
+    RunWorkflow:
+      type: object
+      required: [mode]
+      properties: { mode: { $ref: '#/components/schemas/RunMode' }, limits: { $ref: '#/components/schemas/Limits' }, aiUsageCapUsd: { type: number, minimum: 0, maximum: 0.25, multipleOf: 0.01, description: Zero disables model calls for the run; use deterministic processing only where supported. } }
+    Recipe:
+      type: object
+      required: [id, site, version, status, actions]
+      properties: { id: { type: string, format: uuid }, site: { type: string }, version: { type: integer }, status: { type: string, enum: [draft, previewed, approved, active, needs_review, retired] }, actions: { type: array, items: { type: object, additionalProperties: true } }, validation: { type: [object, 'null'], additionalProperties: true }, codeExportAvailable: { type: boolean } }
+    RecipePage:
+      type: object
+      required: [items, nextCursor]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Recipe' } }, nextCursor: { type: [string, 'null'] } }
+    RecipeAction:
+      type: object
+      required: [action]
+      properties: { action: { type: string, enum: [preview, replay, approve, retire] } }
+    SiteSession:
+      type: object
+      required: [id, domain, status, expiryMode]
+      properties: { id: { type: string, format: uuid }, domain: { type: string }, status: { type: string, enum: [connecting, active, expired, needs_attention, revoked, unavailable] }, expiryMode: { type: string, enum: [no_expiry, custom] }, expiresAt: { type: [string, 'null'], format: date-time }, lastValidatedAt: { type: [string, 'null'], format: date-time } }
+    SessionConnection:
+      type: object
+      required: [id, domain, browserUrl, state]
+      properties: { id: { type: string, format: uuid }, domain: { type: string }, browserUrl: { type: string, format: uri }, state: { type: string, enum: [connecting, ready, failed, cancelled] }, expiresAt: { type: string, format: date-time } }
+    CreateShare:
+      type: object
+      required: [recipientUserId, resourceType, resourceId]
+      properties: { recipientUserId: { type: string, format: uuid }, resourceType: { type: string, enum: [finding, workflow] }, resourceId: { type: string, format: uuid } }
+    ShareGrant:
+      type: object
+      required: [id, resourceType, resourceId, state, access, createdAt]
+      properties: { id: { type: string, format: uuid }, recipientUserId: { type: string, format: uuid }, resourceType: { type: string, enum: [finding, workflow] }, resourceId: { type: string, format: uuid }, state: { type: string, enum: [active, revoked] }, access: { type: string, const: read_only }, createdAt: { type: string, format: date-time }, revokedAt: { type: [string, 'null'], format: date-time } }
+    SharedPage:
+      type: object
+      required: [items, nextCursor]
+      properties: { items: { type: array, items: { type: object, required: [shareId, resourceType, resourceId, senderDisplayName, sharedAt], properties: { shareId: { type: string, format: uuid }, resourceType: { type: string, enum: [finding, workflow] }, resourceId: { type: string, format: uuid }, senderDisplayName: { type: string }, sharedAt: { type: string, format: date-time }, viewOnly: { type: boolean, const: true } } } }, nextCursor: { type: [string, 'null'] } }
+    SharedItem:
+      type: object
+      required: [shareId, resourceType, resourceId, viewOnly, payload]
+      properties:
+        shareId: { type: string, format: uuid }
+        resourceType: { type: string, enum: [finding, workflow] }
+        resourceId: { type: string, format: uuid }
+        viewOnly: { type: boolean, const: true }
+        payload: { type: object, additionalProperties: true }
+        sessionStateIncluded: { type: boolean, const: false }
+        privateRunHistoryIncluded: { type: boolean, const: false }
+    Storage:
+      type: object
+      required: [usedMb, quotaMb, warningAtPercent, categories]
+      properties: { usedMb: { type: number }, quotaMb: { type: number, const: 500 }, warningAtPercent: { type: integer, const: 80 }, categories: { type: object, additionalProperties: { type: number } } }
+    DeletionJob:
+      type: object
+      required: [id, state, requestedAt, scope]
+      properties: { id: { type: string, format: uuid }, state: { type: string, enum: [queued, running, complete, failed] }, requestedAt: { type: string, format: date-time }, completedAt: { type: [string, 'null'], format: date-time }, scope: { type: array, items: { type: string } }, backupExpiryAt: { type: [string, 'null'], format: date-time }, tracePurgeState: { type: string, enum: [pending, complete, provider_limited, not_applicable] } }
+    Invitation:
+      type: object
+      required: [id, email, status, expiresAt, deliveryState, createdAt]
+      properties: { id: { type: string, format: uuid }, email: { type: string, format: email }, status: { type: string, enum: [pending, accepted, expired, revoked] }, expiresAt: { type: string, format: date-time }, deliveryState: { type: string, enum: [queued, sent, failed, quota_paused] }, createdAt: { type: string, format: date-time } }
+    AdminWorkspace:
+      type: object
+      required: [id, operationalState, privateContentReturned]
+      properties: { id: { type: string, format: uuid }, operationalState: { type: string, enum: [active, limited, suspended, deletion_pending] }, lastRunAt: { type: [string, 'null'], format: date-time }, storageUsedMb: { type: [number, 'null'] }, privateContentReturned: { type: boolean, const: false } }
+    SupportGrant:
+      type: object
+      required: [id, auditEventId, workspaceId, itemId, purpose, expiresAt, access, secretsAccessible]
+      properties: { id: { type: string, format: uuid }, auditEventId: { type: string, format: uuid }, workspaceId: { type: string, format: uuid }, itemId: { type: string, format: uuid }, purpose: { type: string }, expiresAt: { type: string, format: date-time }, access: { type: string, const: read_only }, secretsAccessible: { type: boolean, const: false } }
+    AuditPage:
+      type: object
+      required: [items, nextCursor]
+      properties: { items: { type: array, items: { type: object, required: [id, actorId, workspaceId, itemId, purpose, outcome, occurredAt], properties: { id: { type: string, format: uuid }, actorId: { type: string, format: uuid }, workspaceId: { type: string, format: uuid }, itemId: { type: string, format: uuid }, purpose: { type: string }, outcome: { type: string, enum: [granted, denied, expired, revoked] }, occurredAt: { type: string, format: date-time } } } }, nextCursor: { type: [string, 'null'] } }
+

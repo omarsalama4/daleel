@@ -1,0 +1,742 @@
+DALEEL
+ProductRequirements Document
+Draft v1.4  •  2026-09-28
+Product name: Daleel (دليل) [Decision]
+Document owner: Product Owner
+Status: Draft v1.4 — engineering review decisions incorporated for private hosted beta
+Date: 2026-09-28
+Audience: Product owner and invited friends
+Purpose: Define a hosted, query-driven web crawler and research product, including its reference workflow, reusable automation, safety boundaries, and release requirements.
+Contents
+How to read this document
+17. Multi-Agent Orchestration Framework
+1. Executive Summary
+18. Search, Model, and Browser Integrations
+2. Product Vision
+19. AI Research, Language Support, and Trust
+3. Problem Statement
+20. Workspace Administration and Run Operations
+4. Target Users and Personas
+21. Data Model and Primary Entities
+5. User Pain Points and Needs
+22. Integrations and Dependencies
+6. Product Goals and Measurable Success Metrics
+23. High-Level Technical Architecture
+7. Non-Goals
+24. Privacy, Security, Safety, and Responsible AI
+8. Scope and Product Boundaries
+25. Accessibility and Language Requirements
+9. Confirmed Product Decisions and Reference Workflow
+26. Analytics and Event-Tracking Requirements
+10. Unified End-to-End User Journey
+27. Non-Functional Requirements
+11. Functional Requirements — Query Research
+28. Risks, Constraints, and Mitigations
+12. Platform Requirements: Private Hosted Beta
+29. Roadmap and Phased Implementation Plan
+13. Workspace, Collaboration, and Sharing
+30. MVP Definition
+14. Crawl Limits, Coverage, and Run Profiles
+31. Acceptance Criteria
+15. Authentication and Browser Sessions
+32. Glossary
+16. Reusable Automation and Recipe Lifecycle
+How to read this document
+Requirements use source labels so decisions remain distinct from recommendations and unresolved implementation details.
+Tag
+Meaning
+[Brief]
+Directly requested by the product owner
+[Decision]
+Explicitly confirmed by the product owner
+[Proposal]
+Recommended behavior not yet separately approved
+[Assumption]
+Practical interpretation where the brief is incomplete
+[Gap]
+Open decision or evidence item
+[Reference PRD]
+Design pattern from the supplied agentic testing PRD, not a product fact
+Requirement IDs use FR for functional requirements, BR for business rules, NFR for non-functional requirements, DR for data requirements, and AC for acceptance criteria. A run is one execution of a query or saved workflow. A recipe is a reusable structured browser automation definition.
+1. Executive Summary
+Daleel is a hosted research crawler for the product owner and a small group of invited friends. A user asks a question, optionally provides starting sites, and receives structured findings with source URLs, supporting evidence, relevance labels, crawl coverage, and exports. The system can discover candidate sites from a query, follow relevant links across domains within limits, and use user-authorized browser sessions where sign-in is required. [Decision]
+A user can turn any query into a proposed workflow. It describes where to look, what to collect, how to judge relevance, what evidence to retain, how to deduplicate, and whether detail-page enrichment is needed. The AI Engineer opportunity search is the reference workflow, not the only supported task. [Decision]
+Daleel combines language-model reasoning with deterministic orchestration and browser execution. The orchestrator owns permissions, queue state, retries, limits, AI model usage caps, and stop conditions. Agents can plan and extract through controlled tools; they cannot grant themselves new scope or override policy. [Reference PRD]
+The first release is a private hosted beta with one personal workspace per invited user and a SaaS-ready foundation. Neon Postgres, Neon Managed Better Auth, Neon Object Storage, and Google Cloud Run are selected beta services. [Decision] Billing and public launch remain out of scope. Search, model, email, and observability providers remain replaceable recommendations; the AI model usage caps are approved. [Decision]
+2. Product Vision
+Help people turn a natural-language question into a bounded, repeatable web research workflow that finds useful information, verifies it against source evidence, and preserves the automation for reuse.
+Users should be able to see what the system planned, which sources it reached, what it extracted, why results were considered relevant, and what it could not complete. [Brief]
+3. Problem Statement
+Research across many websites is repetitive. Users search, open pages, collect details into notes or spreadsheets, revisit the same sites, and rebuild scripts when page structure changes. One-off scrapers can lose provenance, silently omit inaccessible pages, or return unstructured output.
+An unconstrained agent can over-crawl, produce unsupported claims, misuse an authenticated session, or fail without a useful explanation. Daleel addresses these risks through explicit scope, deterministic run limits, versioned recipes, structured extraction, evidence retention, and partial-result reporting. [Proposal]
+4. Target Users and Personas
+Persona
+Context
+Primary need
+Product owner
+Owns the beta and invites friends
+Run research, configure limits, manage providers and workspace settings
+Friend / collaborator
+Uses an isolated workspace and may receive explicitly shared items
+Use workflows without access to another user’s sessions or private history
+Workflow author
+Any Workspace Owner creating a query workflow
+Review, edit, save, version, and reuse generated plans and recipes
+The first release uses email invitations. Each invited user owns one personal workspace; the Platform Operator administers the beta under a separately audited access path. Peer workspace membership and enterprise roles are out of scope. [Decision]
+5. User Pain Points and Needs
+Pain point
+Daleel response
+Repeated manual searching and copying
+Generate a workflow from a query and collect structured results
+One-off scripts break as pages change
+Version recipes, detect drift, and request review when reliability falls
+Results lack traceability
+Attach source URLs and supporting evidence
+“All data” has no clear boundary
+Configure domain, page, depth, time, retry, and data limits per query
+Crawls stop without useful context
+Preserve partial results and report gaps, barriers, and stop reasons
+Matching can be too broad or too narrow
+Offer Broad, Balanced, and Strict relevance settings
+6. Product Goals and Measurable Success Metrics
+Goal
+Metric
+Initial target
+Make queries usable without code
+Time from submission to first useful result
+Measure first-useful-result time over the first 20 beta runs; set a post-beta target from observed data. [Proposal]
+Return verifiable information
+Findings with source URL and evidence
+100% of surfaced factual fields have minimal supporting evidence; unsupported fields are explicitly unknown or unverified
+Make coverage understandable
+Partial runs with explicit reason and coverage
+100%
+Extract requested fields accurately
+Human-reviewed field accuracy by task and language
+Provisional reviewed beta benchmark: ≥90% extracted-field precision and ≥80% relevant-result recall across job and non-job tasks, including English and Arabic; revise targets with beta evidence. [Decision]
+Reuse automation reliably
+Saved recipe execution success rate
+Establish baseline; report drift separately
+Control run cost
+AI calls admitted within remaining model budget; actual provider charges reconciled and any overrun disclosed
+100%
+Improve relevance
+User feedback and correction rate
+Track by workflow, mode, and language
+7. Non-Goals
+Bypassing MFA, CAPTCHA, bot detection, access controls, or site-imposed barriers. [Decision]
+Submitting forms, applying for jobs, posting, purchasing, or changing account data. Crawling is read-only, including on logged-in sites. [Decision]
+Unlimited crawling or a guarantee that every page or item will be found. Runs are bounded and report partial coverage. [Decision]
+Automatically saving every generated workflow. Users explicitly choose Save workflow. [Decision]
+Public commercial launch, billing plans, or public self-service signup in the initial release. [Decision]
+A desktop or mobile client in the first release. The beta is hosted and browser-accessible. [Assumption]
+User-editable arbitrary server-side code execution. Playwright code may be inspected or exported; saved automation remains structured recipes. [Proposal]
+8. Scope and Product Boundaries
+In scope: hosted workspaces, query planning, web discovery, cross-domain crawl within limits, permitted browser automation, authenticated read-only sessions, multilingual page handling, evidence-backed extraction, relevance ranking, deduplication, workflow/recipe versioning, explicit sharing, exports, spend controls, and run history. [Decision]
+“General-purpose” means a user can create workflows from varied queries; it does not mean every data source or interaction is available. Access remains subject to authorization, site policy, run scope, and hard limits. [Decision]
+The AI Engineer opportunity workflow validates discovery, ranking, detail-page enrichment, structured extraction, evidence, deduplication, and partial completion. [Decision]
+9. Confirmed Product Decisions and Reference Workflow
+9.1 Query-to-workflow generation
+ID
+Requirement
+FR-BASE-001
+Any research query may produce a workflow proposal covering task interpretation, candidate sources, fields, relevance, evidence, deduplication, and limits. [Decision]
+FR-BASE-002
+Plans are editable before execution in Approval mode. [Proposal]
+FR-BASE-003
+Queries may run without being saved; reusable workflows enter the library only after an explicit Save workflow action. [Decision]
+9.2 AI Engineer opportunity search template
+ID
+Requirement
+FR-JOB-001
+Discover candidate AI Engineer opportunities, rank them, and apply the chosen relevance mode. [Decision]
+FR-JOB-002
+Attempt detail-page enrichment for every finding marked relevant. Extract all available title, employer, description, responsibilities, qualifications, skills, compensation, location, work arrangement, dates, deadline, and application URL. [Decision]
+FR-JOB-003
+Retain detail-page URL and supporting evidence; mark missing values unknown. [Decision]
+FR-JOB-004
+If limits prevent enrichment, mark the finding incomplete and explain why; never silently omit relevant findings. [Decision]
+FR-JOB-005
+Group duplicates using canonical URL and normalized posting attributes; allow inspection and correction of uncertain matches. [Proposal]
+9.3 Relevance settings
+ID
+Requirement
+BR-REL-001
+Broad includes plausible matches and labels weaker fits; Balanced includes good matches and is default; Strict includes strong matches only. [Decision]
+BR-REL-002
+Relevance scores are evidence-based ranking signals, not calibrated probabilities. [Proposal]
+9.4 Workflow and recipe saving
+ID
+Requirement
+FR-BASE-004
+A generated workflow may run once without being saved; saving requires an explicit user action. [Decision]
+FR-BASE-005
+Saved definitions are versioned, and each run records the version used. [Proposal]
+10. Unified End-to-End User Journey
+User submits a query and optional seeds, preferred sites, languages, or filters.
+Daleel proposes a workflow, scope, fields, relevance mode, and Standard limits.
+User chooses Approval or Autonomous mode.
+Approval mode presents the plan and configured approval points.
+Discovery uses the configured search provider, sitemaps, links, and permitted browser interactions.
+Crawl workers fetch pages within scope, respecting public crawl directives and rate limits.
+Extraction and validation produce findings, evidence, relevance, duplicates, and unknown fields.
+Job-search workflows attempt detail enrichment for every relevant finding.
+The report shows status, coverage, limits, barriers, results, AI model usage, and separate non-AI quota/cost indicators.
+User can give feedback, export data, explicitly save the workflow, or share selected results or recipes.
+11. Functional Requirements — Query Research
+11.1 Query planning
+ID
+Requirement
+FR-PLN-001
+Convert natural-language queries into editable structured workflow proposals. Distinguish directly requested facts from inferred filters. [Proposal]
+FR-PLN-002
+Propose fields and types, matching criteria, evidence requirements, deduplication strategy, and whether detail-page enrichment is needed. [Proposal]
+FR-PLN-003
+Approval mode shows the plan, limits, and estimated AI model usage before execution. [Decision]
+FR-PLN-004
+If ambiguity materially changes results, ask a concise clarification or present selectable interpretations. [Proposal]
+11.2 Source discovery
+ID
+Requirement
+FR-SRC-001
+Discover candidate sites from queries through a pluggable search API. [Decision]
+FR-SRC-002
+Start from user-provided URLs/domains and discover pages within configured scope. [Decision]
+FR-SRC-003
+Follow relevant links across public domains within the query's initial scope and configured domain, page, depth, time, retry, download, policy, and AI model usage limits; Autonomous mode does not require per-domain approval within that envelope. [Decision]
+FR-SRC-004
+Record discovered, fetched, skipped, failed, and blocked URLs with reasons. [Proposal]
+11.3 Crawl and page processing
+ID
+Requirement
+FR-CRL-001
+Support page text, metadata, links, and relevant downloads such as PDFs. [Decision]
+FR-CRL-002
+Honor robots.txt and configured rate limits for public crawls. [Decision]
+FR-CRL-003
+Use browser automation where permitted page interactions are needed; never use RPA to defeat stated access restrictions. [Decision]
+FR-CRL-004
+Permit navigation, pagination, expansion, and detail opening when controls are classified as likely read-only. If an interaction remains ambiguous, pause or skip it. Block form submission and site writes in the beta. [Decision]
+FR-CRL-005
+Detect cycles, canonical URL variants, repeated pages, and likely crawler traps such as unbounded query parameters. [Proposal]
+11.4 Relevance, detail enrichment, and extraction
+ID
+Requirement
+FR-EXT-001
+Extract workflow fields and retain original source text where useful for audit. [Proposal]
+FR-EXT-002
+Provide Broad, Balanced, and Strict relevance settings, with Balanced as default. [Decision]
+FR-EXT-003
+Attempt detail enrichment for every relevant finding until a hard run limit or access barrier stops the run. [Decision]
+FR-EXT-004
+Distinguish observed facts, missing values, conflicting evidence, and model-generated summaries. [Proposal]
+FR-EXT-005
+Do not infer missing fields; ground summaries in evidence and link sources. [Proposal]
+11.5 Evidence, deduplication, and feedback
+ID
+Requirement
+FR-EVD-001
+Every surfaced factual field retains minimal supporting evidence: source URL, fetch timestamp, excerpt or snapshot, and content digest. Unsupported fields are explicitly unknown or unverified rather than presented as facts. Full raw-page capture is optional. [Decision]
+FR-EVD-002
+Display supporting snippets and links to relevant source/detail pages. [Decision]
+FR-EVD-003
+Group duplicate candidates while keeping them inspectable; label uncertain matches. [Proposal]
+FR-EVD-004
+Let users mark results relevant, irrelevant, or incorrect and submit corrections. [Decision]
+FR-EVD-005
+Associate feedback with workspace, query, workflow version, and finding; never silently rewrite an approved workflow. [Proposal]
+12. Platform Requirements: Private Hosted Beta
+12.1 Private beta
+ID
+Requirement
+FR-PLT-001
+Provide a hosted web application. [Decision]
+FR-PLT-002
+Support the product owner and a small invited group with isolated workspaces. [Decision]
+FR-PLT-003
+Keep architecture ready for later SaaS expansion without requiring initial billing or public signup. [Decision]
+12.2 SaaS-ready foundations
+ID
+Requirement
+FR-PLT-004
+Scope owners, share grants, secrets, runs, results, workflows, and artifacts by personal workspace; isolate the operator admin path and audit its private-content access. [Decision]
+FR-PLT-005
+Defer commercial launch, subscriptions, public onboarding, and enterprise administration until separately decided. [Decision]
+13. Workspace, Collaboration, and Sharing
+ID
+Requirement
+FR-WKS-001
+Every beta user has a personal workspace and is its Owner. Friends' workspaces are isolated; cross-workspace access occurs only through explicit sharing or audited platform-operator administration. [Decision]
+FR-WKS-002
+A Workspace Owner may explicitly share selected results or saved workflows with another user. Sharing an authenticated finding uses the ordinary Share action; no second confirmation is required. [Decision]
+FR-WKS-003
+Sharing never exposes login sessions, credentials, or private run history. [Decision]
+FR-WKS-004
+A recipient may inspect a shared recipe but cannot execute it with the creator’s authenticated session. [Proposal]
+FR-WKS-005
+The Platform Operator invites beta users by email. Each user owns their personal workspace and controls its settings, provider policy, AI budgets, sessions, and deletion. The Platform Operator may inspect private run content for support and operations under an internally audited admin exception, but cannot read raw session secrets or override an Owner's authenticated-content AI policy. [Decision]
+14. Crawl Limits, Coverage, and Run Profiles
+The initial Standard profile uses these defaults; every limit is adjustable per query. [Decision]
+Limit
+Standard default
+Domains
+20
+Pages, including detail pages
+500
+Crawl depth
+5
+Elapsed time
+20 minutes
+Retries per page
+2
+Downloaded data
+100 MB
+ID
+Requirement
+BR-LIM-001
+The orchestrator enforces per-run limits and may apply platform-wide ceilings. [Proposal]
+BR-LIM-002
+Detail-page fetches count toward page, time, retry, and download limits; their AI model calls count toward AI usage caps. [Decision]
+BR-LIM-003
+Preserve completed findings when a limit is reached and mark the run partial with reason and coverage. [Decision]
+BR-LIM-004
+Reserve estimated AI model cost before each call. Approved private-beta defaults are $0.25 estimated AI model usage per run and $5.00 per workspace per month; the lower remaining cap governs. Stop near the cap and reconcile actual charges, including possible billed timeouts or unavoidable overrun. Caps are adjustable; paid model routes require explicit Owner enablement. Search, hosting, and other infrastructure costs are separately tracked and outside these AI caps. [Decision]
+BR-LIM-005
+Mark Complete only when every discovered in-scope page is processed or has an accounted-for terminal outcome. Show the discovered frontier, visited/skipped/failed/blocked pages, and unknown coverage beyond discovery; never imply every page on a site was found. [Decision]
+15. Authentication and Browser Sessions
+ID
+Requirement
+FR-AUTH-001
+Provide a hosted interactive remote browser in which the user signs in to an authorized site and completes MFA personally; an isolated worker then reuses only that user's encrypted session state. [Decision]
+FR-AUTH-002
+Session expiry is configurable per user/site and defaults to no expiry; users can revoke it, and a site may invalidate it. [Decision]
+FR-AUTH-003
+Store encrypted browser session state, not raw passwords by default. [Proposal]
+FR-AUTH-004
+A session is available only to its owner’s authorized runs and is not shared across workspaces. [Decision]
+FR-AUTH-005
+If a run encounters an unhandled MFA prompt, CAPTCHA, bot detector, login requirement, or other barrier, pause/stop and report the needed user action. Do not attempt a workaround. [Decision]
+FR-AUTH-006
+Mask cookies, secrets, and session values from logs, model prompts, exports, and evidence wherever possible. [Proposal]
+16. Reusable Automation and Recipe Lifecycle
+ID
+Requirement
+FR-AUT-001
+Generate structured recipes for repeatable site interaction and extraction. [Brief]
+FR-AUT-002
+Store versioned structured definitions; allow generated Playwright code inspection and export. [Decision]
+FR-AUT-003
+Recipe states are Draft, Previewed, Approved, Active, Needs Review, and Retired. Before activation, a user previews and approves the generated actions, then the system successfully replays them on representative pages and checks extraction and field evidence. [Decision]
+FR-AUT-004
+Approval mode follows configured review points. Autonomous mode may discover public domains within the initial query scope and domain limit without per-domain approval; recipe activation still requires preview, approval, and successful replay. [Decision]
+FR-AUT-005
+Record recipe version, site, task, and run for each execution. [Proposal]
+FR-AUT-006
+Detect recipe drift and lower confidence or pause reuse when selectors/page semantics no longer match. [Proposal]
+FR-AUT-007
+Recipes reference a user session at runtime and never contain credentials. [Proposal]
+FR-AUT-008
+Arbitrary server-side code execution is outside the beta. [Proposal]
+17. Multi-Agent Orchestration Framework
+Use specialized agents controlled by a deterministic orchestrator. Separating model reasoning from queues, budgets, retries, permissions, and run state follows a useful pattern from the supplied reference PRD. [Reference PRD]
+ID
+Requirement
+FR-AGT-001
+The Orchestrator owns task state, dependencies, budgets, permissions, retries, concurrency, and stop conditions. [Proposal]
+FR-AGT-002
+The Planner proposes workflows but does not directly manage infrastructure state. [Proposal]
+FR-AGT-003
+Discovery, crawl, recipe, extraction, validation, and report tasks communicate through structured results and persisted events rather than free-form inter-agent chat. [Proposal]
+FR-AGT-004
+The Orchestrator validates scope, permissions, limits, and spend before scheduling requested follow-up tasks. [Proposal]
+FR-AGT-005
+Use task idempotency and attempt records to avoid duplicate findings across retries. Track possible provider charges for timed-out calls; never promise charges cannot repeat. [Decision]
+FR-AGT-006
+Validate model outputs against schemas before they affect workflow state or structured results. [Proposal]
+17.1 Human-in-the-loop role and approval model [Decision]
+Human-in-the-loop is Daleel’s policy, access, and quality-control layer. People authorize scope, supply authenticated access themselves, review generated recipes when required, and correct ambiguous findings. Users do not need to approve every page fetch.
+Approval mode: before execution, the user reviews and may edit the interpreted query, target domains, fields, relevance setting, crawl limits, AI model usage caps, and proposed recipe, then approves the run. A new or changed recipe must be previewed and approved before activation. The user signs into the target site and completes MFA in the browser; Daleel reuses only that user’s authorized session. The user can pause, resume, cancel, annotate, or correct results.
+Autonomous mode: run the query without waiting for a Save workflow action. The user may authorize discovery and crawling of public domains reached through links within the configured 20-domain Standard envelope and other run limits, without per-domain approval. Remain within the user's initial query scope, AI model usage caps, authorized sessions, and approved recipe versions. Pause or skip when scope or limits would expand, access requires user action, a barrier appears, recipe drift lowers confidence, a material ambiguity changes the result, an interaction is not confidently read-only, or a budget boundary is reached. [Decision]
+Autonomous mode is bounded delegation, not unrestricted access. Daleel never solves or bypasses CAPTCHA/MFA/bot detection, reauthenticates as the user, expands scope by itself, or performs write actions. A human must resolve access barriers through the normal site flow or end the run.
+Feedback: users may mark a result relevant, irrelevant, incomplete, or incorrect and provide a correction. Feedback is tied to the workspace, run, and workflow/recipe version. It may inform a proposed ranking or recipe revision, but never silently changes an approved workflow or prior results.
+Roles: each beta user is the Owner of a personal workspace and controls its content, AI processing policy, budgets, and sessions. The Platform Operator administers invitations and may inspect private run content for support under an internal, admin-only access audit; the operator cannot inspect raw session secrets or override the Owner's authenticated-content AI policy. Explicit sharing grants access only to selected findings or recipes, never to a session or private run history. [Decision]
+17.2 Agent pattern selection and execution model
+Plan-and-Execute is the primary run pattern. A Planner decomposes a user query into typed discovery, crawl, extraction, enrichment, validation, and reporting tasks. It emits a schema-validated dependency DAG with declared inputs, outputs, scope, and estimated resource use. The deterministic scheduler owns execution, concurrency, budgets, retries, and stop conditions; LangGraph provides typed state, durable checkpoints, and resumable interrupts for long-running work. [Proposal]
+ReWOO and LLMCompiler influence planning and scheduling: resolve the known plan and dependencies before dispatch, then run independent domains, pages, and extraction tasks concurrently. Join dependent tasks only when their inputs are ready. Per-domain rate limits, host concurrency, total run limits, and provider caps always constrain parallel work. Keep model planning separate from browser side effects. [Proposal]
+Use ReAct only as a bounded browser interaction loop when permitted static retrieval, sitemaps, and documented endpoints cannot provide the page content. Give it a narrow set of read-only browser tools, a step limit, and a time limit. Conditional routing should prefer the least interactive permitted method and escalate to browser rendering only when needed. If login expires or MFA, CAPTCHA, bot detection, or another access barrier appears, pause for the user or stop; never automate bypass. [Proposal]
+Use structured Pydantic outputs for plans, task results, extracted records, and completion reports. Each surfaced field must point to evidence such as a source URL, retrieval time, and supporting text or artifact reference. Evidence retrieval supplies source-backed context to ranking and final answers; unsupported or conflicting fields are marked uncertain instead of being filled by inference. [Proposal]
+Reflection is a targeted quality check after extraction: verify required fields, schema validity, evidence coverage, contradictions, and task completeness. Permit at most one focused correction pass within the existing retry and spend limits, then return the uncertainty or gap. Do not run open-ended self-critique loops. [Proposal]
+Reflexion-style cross-run learning is limited to versioned recipes, selectors, drift notes, and user feedback. Reuse only an approved recipe version inside its saved scope. Suggestions from failures or feedback create a proposed revision for review; they never change scope, credentials, or an active approved recipe silently. [Proposal]
+Capability progression: establish Plan-and-Execute with LangGraph state and evidence first; add ReWOO/LLMCompiler-inspired dependency scheduling and bounded parallelism next; then add targeted reflection and reviewed recipe memory. ReAct remains a page-level fallback, not the top-level run controller. This sequence keeps the system useful for arbitrary query workflows while limiting agent calls and making failures inspectable. [Proposal]
+18. Search, Model, and Browser Integrations
+Integration
+Need
+Status
+Search API
+Discover sites and candidate pages from queries
+Tavily Search; free 1,000 credits/month [Proposal]
+Hosted AI provider
+Plan queries, rank relevance, extract and summarize
+Groq primary + OpenRouter Free route [Proposal]
+Browser automation
+Interactive sign-in and permitted read-only RPA
+Playwright / Python [Proposal]
+Object storage
+Store evidence artifacts where enabled
+Neon Object Storage [Decision]
+Email/invite service
+Invite friends and manage access
+Neon Managed Better Auth [Decision] + Resend Free email [Proposal]
+Exports
+Searchable UI, CSV, JSON, clean text, site graph, evidence, optional raw page artifacts
+In scope
+ID
+Requirement
+INT-001
+Isolate vendor integrations behind replaceable provider adapters. [Proposal]
+INT-002
+Keep provider credentials in platform secret management, not workflow definitions. [Proposal]
+INT-003
+Workspace Owners can set per-query and monthly AI model usage caps. [Decision]
+INT-004
+Enforce the Owner’s per-run and monthly AI model usage caps; approved beta defaults are defined in BR-LIM-004. Count estimated AI model list-price usage only; search-provider and infrastructure costs are excluded. Require Owner enablement for paid model routes. [Decision]
+19. AI Research, Language Support, and Trust
+ID
+Requirement
+FR-AI-001
+The private-beta user interface is English-language. [Decision]
+FR-AI-002
+Crawling and extraction support source content and user queries across languages without limiting the product to English pages. [Decision]
+FR-AI-003
+Detect language where practical, preserve original-language evidence, and support cross-language matching. [Proposal]
+FR-AI-004
+Distinguish language-processing failure or low confidence from absence of information. [Proposal]
+FR-AI-005
+Treat web content as untrusted; it cannot override policy, expand scope, request secrets, or schedule unrelated actions. [Proposal]
+FR-AI-006
+Ground AI summaries in stored source evidence and link to supporting pages. [Proposal]
+FR-AI-007
+Each personal Workspace Owner controls whether authenticated page content from that workspace may be sent to hosted AI providers. The Platform Operator cannot override this policy. If disabled, a run must use permitted local or deterministic processing, or report that extraction is unavailable. [Decision]
+20. Workspace Administration and Run Operations
+ID
+Requirement
+FR-ADM-001
+The Platform Operator manages beta invitations and service operations; each Workspace Owner manages their own provider policy, AI caps, sessions, saved workflows, sharing, and deletion. [Decision]
+FR-ADM-002
+Show run stage, discovered/fetched pages, retries, downloaded data, estimated and actual AI model usage, separate search/hosting quota or cost indicators, and stop reason. [Decision]
+FR-ADM-003
+Allow safe pause, resume, cancellation, and stop at access or budget boundaries. [Proposal]
+FR-ADM-004
+Audit membership, secrets, providers, sharing, deletion, and every operator access to another user's private workspace content with actor, time, purpose, and item. Operator-access audit records are visible internally to platform admins only. [Decision]
+FR-ADM-005
+A complex enterprise role catalog is not required for the private beta. [Assumption]
+21. Data Model and Primary Entities
+Entity
+Purpose
+User
+Authenticated person using Daleel
+Workspace
+Personal isolation boundary for a user's secrets, workflows, runs, results, and artifacts
+Owner / Share Grant
+Owner identity and explicit cross-workspace share grants
+Query
+Original research request and query-specific settings
+Workflow / Workflow Version
+Reusable plan and immutable version of fields, rules, and source strategy
+Recipe / Recipe Version
+Reusable browser automation and immutable version of its steps/selectors
+Site / Domain
+Canonical origin and crawl-policy settings
+Auth Session
+Encrypted, user-owned browser session state
+Run
+One execution of a query or workflow version
+Task / Attempt
+Independently scheduled work and each retry
+Page
+Discovered or fetched URL and crawl metadata
+Finding
+Extracted result with relevance and evidence
+Evidence
+Source URL, fetch time, minimal excerpt or snapshot, digest, and field provenance
+Spend Record
+AI call reservations and actual usage accounting; separate non-AI quota/cost telemetry
+Feedback
+User relevance label or correction
+Share Grant
+Explicit permission to share a selected result or workflow
+ID
+Requirement
+DR-001
+Each run records query, workflow/recipe version, model/prompt/schema versions, user/workspace, limits, provider configuration, language, task attempts, evidence digests, and outcomes. [Decision]
+DR-002
+Sessions and secrets are encrypted and user/workspace scoped. [Decision]
+DR-003
+Results and artifacts remain until the user deletes them; deletion cascades to derived evidence and indexes. [Decision]
+DR-004
+Persist an internal operator-access audit with actor, time, purpose, workspace, and item, protected from ordinary users and excluding raw session secrets. [Decision]
+22. Integrations and Dependencies
+Neon Postgres is selected for the system of record, LangGraph checkpoints, and the application-owned durable task queue. Neon Managed Better Auth is selected for product identity; Neon Object Storage is selected for evidence artifacts. [Decision] Google Cloud Run is selected for FastAPI and an on-demand isolated Cloud Run Job per run. [Decision] Tavily Search, Groq primary AI API, OpenRouter Free secondary route, and Resend email remain beta recommendations behind replaceable adapters. [Proposal] Cloudways is not recommended for the Python core because its current managed platform does not support Python applications. [Decision]
+ID
+Requirement
+INT-005
+The platform must provide adapter boundaries for search and model vendors. [Proposal]
+INT-006
+Reserve, measure, and reconcile AI model usage against per-run and monthly workspace caps. Track search-provider quotas and hosting/infrastructure usage separately, with billing alerts and worker limits; the AI caps do not bound those costs. [Decision]
+INT-007
+Vendor outages should produce explicit partial/failed task status without discarding completed findings. [Proposal]
+23. High-Level Technical Architecture
+The hosted system comprises a FastAPI control plane, LangGraph workflow runtime, PostgreSQL system of record and durable queue, isolated Playwright workers, replaceable search/model adapters, and evidence storage. See 23.1 for the recommended private-beta stack and its free-tier limitations. [Proposal]
+Typical flow: User UI → Query Planner → Policy/Budget Gate → Durable Orchestrator → Search/Discovery Tasks → Isolated Fetch/Browser Workers → Extraction and Validation → Results/Evidence Store → Report and Exports.
+The Orchestrator is the source of truth for task state, budgets, retries, and permissions. The model plans and extracts; it does not act as the workflow engine. [Proposal]
+23.1 Recommended private-beta technology stack [Proposal]
+Application API: Python 3.12, FastAPI, and Pydantic v2. Use typed request/response contracts and schema validation at every agent boundary.
+Agent framework: LangGraph for a stateful, checkpointed workflow graph with interrupt/resume at human approval gates. The deterministic orchestration layer owns permissions, scope, retries, budgets, and stop conditions; model agents propose and extract but do not control infrastructure.
+Product identity and invitations: Neon Managed Better Auth for accounts and personal workspace ownership. [Decision] Resend Free is the proposed transactional invitation and notification email service; queue or report when its quota is exhausted and never silently incur overage. [Proposal]
+System of record and queue: Neon Postgres for the invite-only beta, with SQLAlchemy and Alembic migrations. Implement the queue as application-owned PostgreSQL run/task tables with leases, fencing tokens, idempotency keys, bounded retries, and SKIP LOCKED claiming; keep a queue adapter boundary. Use Neon pooled runtime connections and reconnect after scale-to-zero. Each on-demand Cloud Run Job claims only its run's tasks; recovery scans reclaim expired leases. [Decision] Neon Object Storage holds evidence artifacts behind a replaceable adapter. [Decision] Enforce personal-workspace isolation in application authorization and database Row Level Security, with a separately audited platform-operator access path.
+Browser and reusable RPA: Playwright for Python in isolated workers launched by an on-demand Cloud Run Job per run. Store versioned, structured recipes and inspectable/exportable Playwright actions; keep credentials and session state out of recipes. Permit discovered public domains inside the query envelope and configured domain limit. Restrict workers to likely read-only interactions, job-scoped session references, and run budgets; pause or skip ambiguous controls.
+AI providers: Groq as the primary inference adapter and OpenRouter Free models as a quota-limited secondary route. Keep both behind a provider interface. Do not silently fall back to a paid model; if a free quota is exhausted, queue or stop with a clear partial-run reason.
+Search and discovery: Tavily Search as the initial provider. Its current free plan includes 1,000 API credits per month without a credit card; credit use varies by endpoint. Disable paid upgrades by default and stop or wait when the included quota is exhausted.
+Hosting: Google Cloud Run for the FastAPI service and isolated browser/worker containers, with a region selected near users and required target sites. Cloud Run has a monthly free usage allowance, but a billing account is required and overage, networking, image storage, and sustained browser work can incur charges. Use Cloud billing alerts and low worker concurrency; these infrastructure costs are outside the AI model usage caps. [Decision]
+Tracing and observability: OpenTelemetry Python instrumentation for FastAPI and manual spans across planning, queue wait, browser fetch, extraction, provider calls, and persistence; propagate trace and run IDs across workers. Use Langfuse Cloud Hobby for agent traces and token/cost inspection (currently 50,000 units/month, 30 days of history, and two users), plus Cloud Run logs/metrics. Never send passwords, cookies, session state, raw page HTML, or unnecessary personal data to traces.
+CI/CD: GitHub Actions for pull-request linting, type checks, tests, dependency/security checks, container builds, and controlled deployment to Cloud Run. Use short-lived workload identity federation/OIDC for cloud deployment instead of long-lived service-account keys. GitHub Free currently includes 2,000 hosted-runner minutes/month for private repositories.
+Beta quota behavior: Groq limits vary by model and account; OpenRouter Free currently lists 25+ free models and 50 requests/day. Treat all free quotas and model availability as provider-controlled. The app’s $0.25/run and $5/workspace/month defaults are local estimated-usage guardrails; owners can adjust them, and paid model calls require explicit enablement.
+Hosted free-tier caveats: Neon Free currently includes 100 CU-hours per project/month, 0.5 GB database storage, 10 branches, and up to 2 CU autoscaling; its Object Storage allowance is currently 5 GB per project. Reconnect after database suspension and avoid frequent queue polling. Treat provider limits as subject to change and monitor usage. The app's beta evidence ceilings are 500 MB per workspace and 4 GB overall, leaving headroom under the current provider allowance. Research results remain until manually deleted; Langfuse's free-cloud trace history has separate retention.
+23.2 Official technology and provider references (reviewed 2026-09-28)
+Reference
+Link
+FastAPI documentation
+https://fastapi.tiangolo.com/tutorial/
+LangGraph interrupt/resume
+https://reference.langchain.com/python/langgraph/types/interrupt
+Neon plans and free-tier quotas
+https://neon.com/docs/introduction/plans
+Neon backend, Managed Better Auth, and Object Storage GA
+https://neon.com/blog/neon-backend-is-ga
+Cloud Run Jobs execution
+https://cloud.google.com/run/docs/create-jobs
+Neon connection pooling
+https://neon.com/docs/connect/connection-pooling
+Resend pricing
+https://resend.com/pricing
+Tavily pricing
+https://www.tavily.com/pricing
+Groq rate limits
+https://console.groq.com/docs/rate-limits
+OpenRouter pricing and free quota
+https://openrouter.ai/pricing/
+OpenTelemetry FastAPI instrumentation
+https://opentelemetry-python-contrib.readthedocs.io/en/latest/instrumentation/fastapi/fastapi.html
+Langfuse pricing
+https://langfuse.com/pricing
+Google Cloud Run pricing
+https://cloud.google.com/run/pricing
+GitHub Actions billing
+https://docs.github.com/en/billing/concepts/product-billing/github-actions
+Cloudways supported application types and Python limitation
+https://www.cloudways.com/en/digital-ocean-cloud-hosting.php
+Cloudways pricing
+https://www.cloudways.com/en/pricing.php
+23.3 Data and telemetry boundary [Proposal]
+Product findings and evidence follow the product’s manual-deletion rule. Operational traces have a separate provider retention window and contain only minimized, redacted metadata. A user deletion request must also remove linked trace records where the observability API permits; trace storage is not the system of record.
+23.4 Run execution, recovery, and accounting [Decision]
+A FastAPI request creates a run and a typed dependency DAG in Neon Postgres. An on-demand Cloud Run Job is launched for that run; its bounded workers claim only ready tasks for that run with PostgreSQL leases, fencing tokens, and idempotency keys. Neon run/task rows are authoritative. LangGraph checkpoints preserve agent state and human interrupts but do not replace the task ledger.
+A worker heartbeats its lease and commits task result, evidence pointer, and attempt status atomically where possible. Expired leases are reclaimed by a recovery sweep; a restarted Job resumes unfinished tasks without reissuing already committed findings. Cancel or pause blocks new claims and lets in-flight tasks settle safely. Every task ends in succeeded, skipped, blocked, failed, or cancelled state. Complete means all discovered in-scope tasks reached an accounted-for terminal state; otherwise the run is Partial or Failed with a clear reason and retained findings.
+Reserve estimated AI cost before each model call in a workspace/run ledger and reconcile provider-reported actual usage afterward. Record timed-out attempts because providers may still bill them. The $0.25/run and $5/workspace/month defaults guard AI model usage only. When free search credits end, stop with partial results; paid search stays disabled by default. Set Cloud Run worker concurrency ceilings and Google Cloud billing alerts for infrastructure spend.
+23.5 Evidence, retention, and data location [Decision]
+Each surfaced factual field stores a source URL, fetched-at time, minimal excerpt or snapshot, and content digest, linked to the extraction and model/prompt/schema versions. Raw page copies are optional. Evidence and results remain until manually deleted. The beta warns at 80% of 500 MB per workspace or 4 GB overall; at a limit it pauses new storage-heavy runs until content is manually deleted or capacity is increased. These evidence limits are separate from the 100 MB Standard per-run download limit.
+Choose a hosted region near beta users and disclose where product data is stored; Egypt-only residency is not required. A Workspace Owner decides whether authenticated page content may be sent to hosted AI providers. The Platform Operator cannot override that choice. Operator access to private workspace content is internally audited for platform admins only; raw cookies and session secrets remain inaccessible through the support path.
+24. Privacy, Security, Safety, and Responsible AI
+ID
+Requirement
+NFR-SEC-001
+Enforce isolation between personal workspaces for sessions, secrets, runs, results, and artifacts. Platform Operator access to private content uses a separately authorized and internally audited path; raw session secrets remain inaccessible. [Decision]
+NFR-SEC-002
+Encrypt credentials and browser session state in transit and at rest. [Proposal]
+NFR-SEC-003
+Defend workers against SSRF, metadata access, unsafe protocols, private-network access, DNS rebinding, and malicious redirects. [Proposal]
+NFR-SEC-004
+Give each worker only the session/secrets needed for its task. [Proposal]
+NFR-SEC-005
+Keep the beta read-only; block form submissions, account changes, purchases, applications, and other writes. [Decision]
+NFR-SEC-006
+Honor robots.txt and configured rate limits on public crawls; report rather than bypass barriers. [Decision]
+NFR-SEC-007
+Treat page instructions, scripts, and embedded prompts as untrusted data. [Proposal]
+NFR-SEC-008
+Support manual deletion of sessions, workflows, results, history, and artifacts, including derived data per deletion policy. [Decision]
+NFR-SEC-009
+Show concise evidence-based explanations without exposing private model reasoning. [Proposal]
+25. Accessibility and Language Requirements
+ID
+Requirement
+NFR-LANG-001
+Private-beta UI is English. [Decision]
+NFR-LANG-002
+Crawling and extraction are not English-only; preserve original source language and support multilingual matching/extraction. [Decision]
+NFR-LANG-003
+Preserve Unicode and right-to-left source content in results and exports. [Proposal]
+NFR-LANG-004
+Benchmark extraction and relevance in English and Arabic first; other languages remain usable with reported confidence and coverage uncertainty. [Decision]
+NFR-A11Y-001
+The web interface supports keyboard navigation, meaningful headings, accessible labels, and readable contrast. [Proposal]
+26. Analytics and Event-Tracking Requirements
+Track query/plan/run lifecycle, domains and pages discovered/fetched/skipped/blocked/failed, recipe creation/approval/drift/failure, findings/enrichment/deduplication, user feedback, provider usage, spend-cap events, session creation/revocation, and artifact deletion.
+ID
+Requirement
+NFR-OBS-001
+Logs and analytics exclude passwords, cookies, provider secrets, and unnecessary personal data. [Proposal]
+NFR-OBS-002
+Measure run duration, queue delay, fetch success, retry rate, feedback-based extraction quality, provider latency/cost, recipe reuse success, and partial-run reasons. [Proposal]
+27. Non-Functional Requirements
+ID
+Requirement
+NFR-001
+Scale control plane and crawl workers independently. [Proposal]
+NFR-002
+Durable task state and completed evidence survive worker restarts. [Proposal]
+NFR-003
+Use idempotency keys, task leases, and attempt records to prevent duplicate findings across retries. Reserve estimated AI usage before a provider call and reconcile actual billing; timed-out calls may still incur charges. [Decision]
+NFR-004
+Workspace data is tenant-isolated. [Decision]
+NFR-005
+Runs stay within configured domain, page, depth, time, retry, download, and AI model usage limits; report separate search and infrastructure usage. [Decision]
+NFR-006
+Results preserve source URLs, timestamps, and evidence needed to audit extraction. [Decision]
+NFR-007
+Preserve partial results and identify incomplete work. [Decision]
+NFR-008
+Trace query, workflow, recipe, and run versions. [Proposal]
+NFR-009
+Keep search/model integrations provider-agnostic. [Proposal]
+NFR-010
+Support multilingual parsing and preserve original text while exposing confidence variation. [Decision]
+28. Risks, Constraints, and Mitigations
+Risk
+Mitigation
+Public sites block crawling or require unsupported access
+Stop, record the barrier, and request an approved user action; do not bypass
+Cross-domain crawl expands too broadly
+Per-query domain/page caps, policy checks, and explicit coverage reports
+Recipes break as sites change
+Version recipes, detect drift, and pause/request review when reliability falls
+AI returns unsupported or incorrect fields
+Field evidence, unknown values for missing data, user correction, evaluation by task/language
+Page content includes prompt injection
+Treat content as untrusted; keep tool permissions and limits outside model control
+Authenticated sessions leak between users
+User/workspace isolation, encryption, scoped worker access, revocation, audit events
+AI and infrastructure costs differ
+Reserve/reconcile AI usage against per-run and monthly caps; show separate search/hosting usage, worker ceilings, and billing alerts
+SSRF or malicious URLs affect workers
+URL validation, egress controls, DNS/IP checks, redirect validation, worker isolation
+“All languages” is interpreted as equal quality everywhere
+Preserve original text, evaluate by language, expose uncertainty and coverage
+29. Roadmap and Phased Implementation Plan
+Phase
+Focus
+Key deliverables
+Phase 0
+Hosted beta foundation
+User/workspace isolation, session store, provider adapters, run queue, spend ledger, audit and deletion foundations
+Phase 1
+Query research vertical slice
+Planner, search API, bounded cross-domain crawl, multilingual parsing, evidence-backed results, partial reports, exports
+Phase 1A
+Reference workflow
+AI Engineer discovery, relevance modes, detail enrichment, deduplication, user feedback
+Phase 1B
+Reusable automation
+Structured recipes, preview/approval, versioning, drift detection, Playwright code inspection/export, explicit save
+Phase 1C
+Private collaboration
+Separate friend workspaces, explicit sharing, invitations, per-query/monthly spend controls
+Phase 2
+Hardening and SaaS decision
+Quality benchmarks, provider cost controls, API/scheduler needs, scaling/security review, commercial launch decision
+Sequencing is a proposal and may change based on beta feedback. [Proposal]
+30. MVP Definition
+The MVP is a hosted private beta completing one generic query-to-results pipeline, demonstrated by AI Engineer opportunity search.
+MVP includes:
+English UI with multilingual crawling and extraction.
+Separate workspaces for owner and friends.
+Query-to-workflow planning for arbitrary research queries.
+Approval and Autonomous modes.
+Pluggable search API and cross-domain discovery subject to robots/rate limits.
+Read-only authenticated sessions, user-completed MFA, encryption, configurable expiry with no-expiry default, and revocation.
+Standard adjustable query limits, evidence, relevance settings, deduplication, unknown fields, partial results, and feedback.
+Detail-page enrichment for every relevant job finding.
+Versioned structured recipes, preview/review behavior, code inspection/export, explicit save.
+Searchable results, CSV/JSON, clean text, site graph, source evidence, and optional raw page artifacts.
+Per-run and monthly workspace AI model usage caps, separate non-AI quota/cost visibility;
+MVP excludes website writes, security-control bypass, public signup, and billing. Neon Postgres, Neon Managed Better Auth, Neon Object Storage, and Google Cloud Run are selected beta services behind replaceable adapters; search, model, email, and observability providers remain evaluated recommendations. [Decision]
+31. Acceptance Criteria
+ID
+Acceptance criterion
+AC-001
+A user submits an arbitrary query and receives an editable structured workflow proposal, usable without saving it.
+AC-002
+Job search supports Broad, Balanced, and Strict relevance, with Balanced default.
+AC-003
+Every finding marked relevant receives a detail-page enrichment attempt or explicit incomplete status/reason.
+AC-004
+Every surfaced factual field has source URL, fetch time, excerpt or snapshot, and digest; unsupported fields are marked unknown or unverified.
+AC-005
+Complete means every discovered in-scope page is processed or accounted for; the report shows visited, skipped, failed, blocked, and unprocessed discovered work, without claiming undiscovered coverage.
+AC-006
+Runs pause/stop at configured domain, page, depth, time, retry, download, or AI model usage limits, and report separate non-AI usage.
+AC-007
+Public crawls honor robots.txt and rate limits; access controls are not bypassed.
+AC-008
+The user completes login/MFA in a hosted remote browser; encrypted session state is user-scoped, reusable for authorized runs, configurable, and revocable.
+AC-009
+The beta cannot submit forms or change target websites.
+AC-010
+A query can run without being saved; saving requires an explicit action.
+AC-011
+A generated recipe is previewed and approved, then replayed successfully on representative pages with extraction and evidence checks before activation; versions and drift are traceable.
+AC-012
+Peer workspaces cannot access one another's sessions, secrets, or private runs; the Platform Operator's private-content access is limited to a separate, internally audited admin path and excludes raw session secrets.
+AC-013
+Selected results/workflows, including authenticated findings, can be shared with one explicit Share action without sharing session state or secrets.
+AC-014
+Multilingual pages can be crawled and original-language evidence is preserved.
+AC-015
+Per-run and monthly workspace AI model usage caps are visible, reserved before calls, and reconciled; non-AI costs and quotas are shown separately.
+AC-016
+Users can manually delete stored sessions, workflows, results, history, and artifacts.
+AC-017
+Approval and Autonomous modes follow the human approval model. Autonomous public-domain discovery stays within the initial scope and 20-domain Standard limit without per-domain approval; it pauses or skips at access, recipe-drift, ambiguous action, and budget gates.
+31.1 Private-beta release gates [Decision]
+Use a human-reviewed benchmark covering the AI Engineer opportunity template plus at least one non-job query, public HTML, PDFs, and authenticated interactive pages. Include English and Arabic cases. Every relevant job finding receives a detail-page attempt or a clear incomplete reason; duplicates referring to the same opportunity are grouped with provenance retained.
+Provisional gates are at least 90% extracted-field precision and 80% relevant-result recall on the reviewed benchmark; 100% of surfaced factual fields have supporting evidence or are marked unsupported/unknown. There must be zero unauthorized site changes and zero peer-workspace data leaks. Review the thresholds and the benchmark composition using beta evidence before expanding access.
+Exercise run crash/restart, lease expiry, cancellation, search-credit exhaustion, AI call timeout, evidence quota, recipe drift, CAPTCHA/MFA barrier, and manual deletion. A run must retain completed findings, show coverage and stop reason, and report actual AI usage plus separate non-AI usage. Verify that operator private-content access is internally audited, raw session secrets stay inaccessible, and each Workspace Owner's authenticated-content AI policy cannot be overridden.
+32. Glossary
+Term
+Definition
+Query
+Natural-language research request submitted by a user
+Workflow
+Structured plan for discovery, extraction, relevance, evidence, deduplication, and limits
+Recipe
+Reusable structured browser automation for a site or task
+Run
+One execution of a query or workflow version
+Finding
+One extracted result returned by a run
+Evidence
+Source URL, timestamp, excerpt, artifact, or field provenance supporting a finding
+Relevance mode
+Broad, Balanced, or Strict matching behavior
+Detail enrichment
+Fetching a finding’s detail page to collect additional fields
+Partial run
+A run that stopped before its configured scope due to a limit, failure, or barrier
+Workspace
+Isolation boundary for a user’s sessions, secrets, workflows, runs, results, and artifacts
+Spend cap
+Owner-configured AI model usage limit per run or workspace month; search and infrastructure costs are separate.
+Autonomous mode
+Run mode proceeding within previously authorized scope and configured limits
+Approval mode
+Run mode requesting review at policy-defined approval points

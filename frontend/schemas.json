@@ -1,0 +1,1931 @@
+{
+  "InvitationPreview": {
+    "type": "object",
+    "required": [
+      "email",
+      "status",
+      "expiresAt"
+    ],
+    "properties": {
+      "email": {
+        "type": "string",
+        "format": "email"
+      },
+      "inviterDisplayName": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "valid",
+          "accepted",
+          "expired",
+          "revoked",
+          "invalid"
+        ]
+      },
+      "expiresAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      }
+    }
+  },
+  "Problem": {
+    "type": "object",
+    "required": [
+      "type",
+      "title",
+      "status",
+      "code",
+      "traceId"
+    ],
+    "properties": {
+      "type": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "status": {
+        "type": "integer"
+      },
+      "detail": {
+        "type": "string"
+      },
+      "code": {
+        "type": "string",
+        "enum": [
+          "unauthenticated",
+          "forbidden",
+          "not_found",
+          "conflict",
+          "invalid_input",
+          "limit_exceeded",
+          "policy_blocked",
+          "provider_unavailable",
+          "quota_exhausted",
+          "rate_limited",
+          "internal_error"
+        ]
+      },
+      "traceId": {
+        "type": "string"
+      },
+      "retryable": {
+        "type": "boolean"
+      },
+      "fieldErrors": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "field",
+            "message"
+          ],
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "CurrentAccount": {
+    "type": "object",
+    "required": [
+      "account",
+      "workspace"
+    ],
+    "properties": {
+      "account": {
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "emailVerified"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "emailVerified": {
+            "type": "boolean"
+          },
+          "displayName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "workspace": {
+        "$ref": "#/components/schemas/Workspace"
+      }
+    }
+  },
+  "Workspace": {
+    "type": "object",
+    "required": [
+      "id",
+      "name",
+      "role"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "name": {
+        "type": "string"
+      },
+      "role": {
+        "type": "string",
+        "const": "owner"
+      },
+      "dataRegion": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    }
+  },
+  "Settings": {
+    "type": "object",
+    "required": [
+      "workspace",
+      "limits",
+      "ceilings",
+      "authenticatedContentAllowed",
+      "providers",
+      "aiCaps"
+    ],
+    "properties": {
+      "workspace": {
+        "$ref": "#/components/schemas/Workspace"
+      },
+      "limits": {
+        "$ref": "#/components/schemas/Limits"
+      },
+      "ceilings": {
+        "$ref": "#/components/schemas/Limits"
+      },
+      "authenticatedContentAllowed": {
+        "type": "boolean",
+        "default": false
+      },
+      "providers": {
+        "type": "object",
+        "required": [
+          "primary",
+          "secondary",
+          "paidRoutesEnabled"
+        ],
+        "properties": {
+          "primary": {
+            "type": "string",
+            "const": "groq"
+          },
+          "secondary": {
+            "type": "string",
+            "const": "openrouter_free"
+          },
+          "paidRoutesEnabled": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "degraded",
+              "unavailable",
+              "unknown"
+            ]
+          }
+        }
+      },
+      "aiCaps": {
+        "$ref": "#/components/schemas/AiCaps"
+      }
+    }
+  },
+  "SettingsPatch": {
+    "type": "object",
+    "minProperties": 1,
+    "properties": {
+      "authenticatedContentAllowed": {
+        "type": "boolean"
+      },
+      "monthlyAiUsd": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 5,
+        "multipleOf": 0.01,
+        "description": "Zero disables model calls for future work; already incurred usage remains recorded."
+      }
+    }
+  },
+  "Limits": {
+    "type": "object",
+    "required": [
+      "domains",
+      "pages",
+      "depth",
+      "minutes",
+      "retriesPerPage",
+      "downloadMb"
+    ],
+    "properties": {
+      "domains": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 20,
+        "default": 20
+      },
+      "pages": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 500,
+        "default": 500
+      },
+      "depth": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 5,
+        "default": 5
+      },
+      "minutes": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 20,
+        "default": 20
+      },
+      "retriesPerPage": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 2,
+        "default": 2
+      },
+      "downloadMb": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100,
+        "default": 100
+      }
+    }
+  },
+  "AiCaps": {
+    "type": "object",
+    "required": [
+      "perRunUsd",
+      "monthlyUsd"
+    ],
+    "properties": {
+      "perRunUsd": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 0.25,
+        "multipleOf": 0.01,
+        "default": 0.25,
+        "description": "Zero disables model calls for the run."
+      },
+      "monthlyUsd": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 5,
+        "multipleOf": 0.01,
+        "default": 5,
+        "description": "Zero disables model calls for future work."
+      }
+    }
+  },
+  "Usage": {
+    "type": "object",
+    "required": [
+      "period",
+      "aiReservedUsd",
+      "aiActualUsd",
+      "aiCapUsd",
+      "searchCredits",
+      "storageUsedMb",
+      "storageQuotaMb"
+    ],
+    "properties": {
+      "period": {
+        "type": "string"
+      },
+      "aiReservedUsd": {
+        "type": "number"
+      },
+      "aiActualUsd": {
+        "type": "number"
+      },
+      "aiCapUsd": {
+        "type": "number"
+      },
+      "searchCredits": {
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "storageUsedMb": {
+        "type": "number"
+      },
+      "storageQuotaMb": {
+        "type": "number",
+        "const": 500
+      },
+      "nonAiCostNotice": {
+        "type": "string"
+      }
+    }
+  },
+  "RunMode": {
+    "type": "string",
+    "enum": [
+      "approval",
+      "autonomous"
+    ]
+  },
+  "CreateRun": {
+    "type": "object",
+    "required": [
+      "query",
+      "mode",
+      "relevance",
+      "limits",
+      "aiUsageCapUsd"
+    ],
+    "properties": {
+      "query": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 10000
+      },
+      "mode": {
+        "$ref": "#/components/schemas/RunMode",
+        "default": "approval",
+        "description": "Approval is selected by default in the UI; Autonomous is explicit per query."
+      },
+      "relevance": {
+        "type": "string",
+        "enum": [
+          "broad",
+          "balanced",
+          "strict"
+        ],
+        "default": "balanced"
+      },
+      "seedUrls": {
+        "type": "array",
+        "maxItems": 100,
+        "items": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "limits": {
+        "$ref": "#/components/schemas/Limits"
+      },
+      "aiUsageCapUsd": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 0.25,
+        "multipleOf": 0.01,
+        "description": "Zero disables model calls for the run; use deterministic processing only where supported."
+      },
+      "workflowId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "uuid"
+      }
+    }
+  },
+  "Plan": {
+    "type": "object",
+    "required": [
+      "id",
+      "query",
+      "mode",
+      "fields",
+      "relevance",
+      "limits",
+      "state",
+      "createdAt"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "query": {
+        "type": "string"
+      },
+      "mode": {
+        "$ref": "#/components/schemas/RunMode"
+      },
+      "requestedCriteria": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "inferredCriteria": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "candidateDomains": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "fields": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "key",
+            "label",
+            "type",
+            "required"
+          ],
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "text",
+                "number",
+                "date",
+                "url",
+                "boolean",
+                "list",
+                "object"
+              ]
+            },
+            "required": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "relevance": {
+        "type": "string",
+        "enum": [
+          "broad",
+          "balanced",
+          "strict"
+        ]
+      },
+      "limits": {
+        "$ref": "#/components/schemas/Limits"
+      },
+      "aiEstimateUsd": {
+        "type": "number"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "generating",
+          "ready",
+          "awaiting_approval",
+          "approved",
+          "blocked",
+          "error"
+        ]
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  },
+  "PlanPatch": {
+    "type": "object",
+    "minProperties": 1,
+    "properties": {
+      "requestedCriteria": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "inferredCriteria": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "candidateDomains": {
+        "type": "array",
+        "maxItems": 20,
+        "items": {
+          "type": "string"
+        }
+      },
+      "fields": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "relevance": {
+        "type": "string",
+        "enum": [
+          "broad",
+          "balanced",
+          "strict"
+        ]
+      },
+      "limits": {
+        "$ref": "#/components/schemas/Limits"
+      }
+    }
+  },
+  "Run": {
+    "type": "object",
+    "required": [
+      "id",
+      "query",
+      "mode",
+      "status",
+      "limits",
+      "sequence",
+      "createdAt",
+      "updatedAt"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "query": {
+        "type": "string"
+      },
+      "mode": {
+        "$ref": "#/components/schemas/RunMode"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "planning",
+          "awaiting_approval",
+          "queued",
+          "running",
+          "paused",
+          "partial",
+          "complete",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "stopReason": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "plan": {
+        "$ref": "#/components/schemas/Plan"
+      },
+      "limits": {
+        "$ref": "#/components/schemas/Limits"
+      },
+      "usage": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "findingCounts": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "integer"
+        }
+      },
+      "sequence": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "updatedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "finishedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      }
+    }
+  },
+  "RunPage": {
+    "type": "object",
+    "required": [
+      "items",
+      "nextCursor"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Run"
+        }
+      },
+      "nextCursor": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    }
+  },
+  "RunAction": {
+    "type": "object",
+    "required": [
+      "action"
+    ],
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "pause",
+          "resume",
+          "cancel"
+        ]
+      }
+    }
+  },
+  "ActivityPage": {
+    "type": "object",
+    "required": [
+      "events",
+      "latestSequence",
+      "run"
+    ],
+    "properties": {
+      "events": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "sequence",
+            "type",
+            "occurredAt",
+            "message"
+          ],
+          "properties": {
+            "sequence": {
+              "type": "integer"
+            },
+            "type": {
+              "type": "string"
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "message": {
+              "type": "string"
+            },
+            "pageUrl": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uri"
+            },
+            "safeAction": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "latestSequence": {
+        "type": "integer"
+      },
+      "run": {
+        "$ref": "#/components/schemas/Run"
+      }
+    }
+  },
+  "FindingPage": {
+    "type": "object",
+    "required": [
+      "items",
+      "nextCursor",
+      "fieldDefinitions",
+      "runStatus"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/FindingSummary"
+        }
+      },
+      "nextCursor": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "fieldDefinitions": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "runStatus": {
+        "type": "string"
+      }
+    }
+  },
+  "FindingSummary": {
+    "type": "object",
+    "required": [
+      "id",
+      "values",
+      "relevance",
+      "status",
+      "sourceUrl",
+      "evidenceCount"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "values": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/FieldValue"
+        }
+      },
+      "relevance": {
+        "type": "object",
+        "required": [
+          "label",
+          "reason"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "enum": [
+              "strong",
+              "possible",
+              "weak",
+              "uncertain"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "relevant",
+          "irrelevant",
+          "incomplete",
+          "unknown",
+          "duplicate"
+        ]
+      },
+      "sourceUrl": {
+        "type": "string",
+        "format": "uri"
+      },
+      "detailUrl": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "uri"
+      },
+      "evidenceCount": {
+        "type": "integer"
+      },
+      "duplicateGroupId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "uuid"
+      }
+    }
+  },
+  "Finding": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/FindingSummary"
+      },
+      {
+        "type": "object",
+        "properties": {
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            }
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "ltr",
+              "rtl",
+              "auto"
+            ]
+          },
+          "duplicateSources": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "FieldValue": {
+    "type": "object",
+    "required": [
+      "evidenceState"
+    ],
+    "properties": {
+      "value": {},
+      "evidenceState": {
+        "type": "string",
+        "enum": [
+          "verified",
+          "unknown",
+          "unverified",
+          "conflict",
+          "unavailable"
+        ]
+      },
+      "evidenceIds": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    }
+  },
+  "Evidence": {
+    "type": "object",
+    "required": [
+      "id",
+      "fieldKey",
+      "sourceUrl",
+      "fetchedAt",
+      "excerpt",
+      "digest"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "fieldKey": {
+        "type": "string"
+      },
+      "sourceUrl": {
+        "type": "string",
+        "format": "uri"
+      },
+      "fetchedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "excerpt": {
+        "type": "string"
+      },
+      "language": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "direction": {
+        "type": "string",
+        "enum": [
+          "ltr",
+          "rtl",
+          "auto"
+        ]
+      },
+      "digest": {
+        "type": "string"
+      },
+      "artifactAvailable": {
+        "type": "boolean"
+      }
+    }
+  },
+  "FeedbackRequest": {
+    "type": "object",
+    "required": [
+      "classification"
+    ],
+    "properties": {
+      "classification": {
+        "type": "string",
+        "enum": [
+          "relevant",
+          "irrelevant",
+          "incomplete",
+          "incorrect"
+        ]
+      },
+      "correction": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 5000
+      },
+      "fieldKey": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    }
+  },
+  "Feedback": {
+    "allOf": [
+      {
+        "$ref": "#/components/schemas/FeedbackRequest"
+      },
+      {
+        "type": "object",
+        "required": [
+          "id",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    ]
+  },
+  "CoveragePage": {
+    "type": "object",
+    "required": [
+      "counts",
+      "urls",
+      "nextCursor",
+      "graph"
+    ],
+    "properties": {
+      "counts": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "integer"
+        }
+      },
+      "urls": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "url",
+            "outcome",
+            "depth",
+            "attempts"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "discovered",
+                "fetched",
+                "skipped",
+                "failed",
+                "blocked",
+                "unprocessed"
+              ]
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "depth": {
+              "type": "integer"
+            },
+            "attempts": {
+              "type": "integer"
+            },
+            "httpStatus": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "nextCursor": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "graph": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  },
+  "ExportRequest": {
+    "type": "object",
+    "required": [
+      "format",
+      "scope"
+    ],
+    "properties": {
+      "format": {
+        "type": "string",
+        "enum": [
+          "csv",
+          "json",
+          "clean_text",
+          "url_ledger"
+        ]
+      },
+      "scope": {
+        "type": "string",
+        "enum": [
+          "filtered",
+          "all",
+          "selected"
+        ]
+      },
+      "findingIds": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "includeEvidence": {
+        "type": "boolean",
+        "default": true
+      },
+      "includeRawArtifacts": {
+        "type": "boolean",
+        "default": false
+      }
+    }
+  },
+  "ExportJob": {
+    "type": "object",
+    "required": [
+      "id",
+      "state",
+      "createdAt"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "complete",
+          "failed"
+        ]
+      },
+      "downloadUrl": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "uri"
+      },
+      "expiresAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  },
+  "SaveWorkflow": {
+    "type": "object",
+    "required": [
+      "runId",
+      "name"
+    ],
+    "properties": {
+      "runId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      }
+    }
+  },
+  "WorkflowPatch": {
+    "type": "object",
+    "minProperties": 1,
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      },
+      "changeSummary": {
+        "type": "string",
+        "maxLength": 1000
+      },
+      "plan": {
+        "$ref": "#/components/schemas/PlanPatch"
+      }
+    }
+  },
+  "Workflow": {
+    "type": "object",
+    "required": [
+      "id",
+      "name",
+      "currentVersion",
+      "versions",
+      "updatedAt"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "name": {
+        "type": "string"
+      },
+      "currentVersion": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "versions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "sharedReadOnly": {
+        "type": "boolean",
+        "default": false
+      },
+      "updatedAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  },
+  "WorkflowPage": {
+    "type": "object",
+    "required": [
+      "items",
+      "nextCursor"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Workflow"
+        }
+      },
+      "nextCursor": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    }
+  },
+  "RunWorkflow": {
+    "type": "object",
+    "required": [
+      "mode"
+    ],
+    "properties": {
+      "mode": {
+        "$ref": "#/components/schemas/RunMode"
+      },
+      "limits": {
+        "$ref": "#/components/schemas/Limits"
+      },
+      "aiUsageCapUsd": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 0.25,
+        "multipleOf": 0.01,
+        "description": "Zero disables model calls for the run; use deterministic processing only where supported."
+      }
+    }
+  },
+  "Recipe": {
+    "type": "object",
+    "required": [
+      "id",
+      "site",
+      "version",
+      "status",
+      "actions"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "site": {
+        "type": "string"
+      },
+      "version": {
+        "type": "integer"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "previewed",
+          "approved",
+          "active",
+          "needs_review",
+          "retired"
+        ]
+      },
+      "actions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "validation": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": true
+      },
+      "codeExportAvailable": {
+        "type": "boolean"
+      }
+    }
+  },
+  "RecipePage": {
+    "type": "object",
+    "required": [
+      "items",
+      "nextCursor"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Recipe"
+        }
+      },
+      "nextCursor": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    }
+  },
+  "RecipeAction": {
+    "type": "object",
+    "required": [
+      "action"
+    ],
+    "properties": {
+      "action": {
+        "type": "string",
+        "enum": [
+          "preview",
+          "replay",
+          "approve",
+          "retire"
+        ]
+      }
+    }
+  },
+  "SiteSession": {
+    "type": "object",
+    "required": [
+      "id",
+      "domain",
+      "status",
+      "expiryMode"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "domain": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "connecting",
+          "active",
+          "expired",
+          "needs_attention",
+          "revoked",
+          "unavailable"
+        ]
+      },
+      "expiryMode": {
+        "type": "string",
+        "enum": [
+          "no_expiry",
+          "custom"
+        ]
+      },
+      "expiresAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "lastValidatedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      }
+    }
+  },
+  "SessionConnection": {
+    "type": "object",
+    "required": [
+      "id",
+      "domain",
+      "browserUrl",
+      "state"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "domain": {
+        "type": "string"
+      },
+      "browserUrl": {
+        "type": "string",
+        "format": "uri"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "connecting",
+          "ready",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "expiresAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  },
+  "CreateShare": {
+    "type": "object",
+    "required": [
+      "recipientUserId",
+      "resourceType",
+      "resourceId"
+    ],
+    "properties": {
+      "recipientUserId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "resourceType": {
+        "type": "string",
+        "enum": [
+          "finding",
+          "workflow"
+        ]
+      },
+      "resourceId": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  },
+  "ShareGrant": {
+    "type": "object",
+    "required": [
+      "id",
+      "resourceType",
+      "resourceId",
+      "state",
+      "access",
+      "createdAt"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "recipientUserId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "resourceType": {
+        "type": "string",
+        "enum": [
+          "finding",
+          "workflow"
+        ]
+      },
+      "resourceId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "active",
+          "revoked"
+        ]
+      },
+      "access": {
+        "type": "string",
+        "const": "read_only"
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "revokedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      }
+    }
+  },
+  "SharedPage": {
+    "type": "object",
+    "required": [
+      "items",
+      "nextCursor"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "shareId",
+            "resourceType",
+            "resourceId",
+            "senderDisplayName",
+            "sharedAt"
+          ],
+          "properties": {
+            "shareId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "resourceType": {
+              "type": "string",
+              "enum": [
+                "finding",
+                "workflow"
+              ]
+            },
+            "resourceId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "senderDisplayName": {
+              "type": "string"
+            },
+            "sharedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "viewOnly": {
+              "type": "boolean",
+              "const": true
+            }
+          }
+        }
+      },
+      "nextCursor": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    }
+  },
+  "SharedItem": {
+    "type": "object",
+    "required": [
+      "shareId",
+      "resourceType",
+      "resourceId",
+      "viewOnly",
+      "payload"
+    ],
+    "properties": {
+      "shareId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "resourceType": {
+        "type": "string",
+        "enum": [
+          "finding",
+          "workflow"
+        ]
+      },
+      "resourceId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "viewOnly": {
+        "type": "boolean",
+        "const": true
+      },
+      "payload": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "sessionStateIncluded": {
+        "type": "boolean",
+        "const": false
+      },
+      "privateRunHistoryIncluded": {
+        "type": "boolean",
+        "const": false
+      }
+    }
+  },
+  "Storage": {
+    "type": "object",
+    "required": [
+      "usedMb",
+      "quotaMb",
+      "warningAtPercent",
+      "categories"
+    ],
+    "properties": {
+      "usedMb": {
+        "type": "number"
+      },
+      "quotaMb": {
+        "type": "number",
+        "const": 500
+      },
+      "warningAtPercent": {
+        "type": "integer",
+        "const": 80
+      },
+      "categories": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "DeletionJob": {
+    "type": "object",
+    "required": [
+      "id",
+      "state",
+      "requestedAt",
+      "scope"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "complete",
+          "failed"
+        ]
+      },
+      "requestedAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "completedAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "scope": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "backupExpiryAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "tracePurgeState": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "complete",
+          "provider_limited",
+          "not_applicable"
+        ]
+      }
+    }
+  },
+  "Invitation": {
+    "type": "object",
+    "required": [
+      "id",
+      "email",
+      "status",
+      "expiresAt",
+      "deliveryState",
+      "createdAt"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "email": {
+        "type": "string",
+        "format": "email"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "accepted",
+          "expired",
+          "revoked"
+        ]
+      },
+      "expiresAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "deliveryState": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "sent",
+          "failed",
+          "quota_paused"
+        ]
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  },
+  "AdminWorkspace": {
+    "type": "object",
+    "required": [
+      "id",
+      "operationalState",
+      "privateContentReturned"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "operationalState": {
+        "type": "string",
+        "enum": [
+          "active",
+          "limited",
+          "suspended",
+          "deletion_pending"
+        ]
+      },
+      "lastRunAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "storageUsedMb": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "privateContentReturned": {
+        "type": "boolean",
+        "const": false
+      }
+    }
+  },
+  "SupportGrant": {
+    "type": "object",
+    "required": [
+      "id",
+      "auditEventId",
+      "workspaceId",
+      "itemId",
+      "purpose",
+      "expiresAt",
+      "access",
+      "secretsAccessible"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "auditEventId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "workspaceId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "itemId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "purpose": {
+        "type": "string"
+      },
+      "expiresAt": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "access": {
+        "type": "string",
+        "const": "read_only"
+      },
+      "secretsAccessible": {
+        "type": "boolean",
+        "const": false
+      }
+    }
+  },
+  "AuditPage": {
+    "type": "object",
+    "required": [
+      "items",
+      "nextCursor"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "id",
+            "actorId",
+            "workspaceId",
+            "itemId",
+            "purpose",
+            "outcome",
+            "occurredAt"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "actorId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "workspaceId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "itemId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "purpose": {
+              "type": "string"
+            },
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "granted",
+                "denied",
+                "expired",
+                "revoked"
+              ]
+            },
+            "occurredAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      },
+      "nextCursor": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    }
+  }
+}
