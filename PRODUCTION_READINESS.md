@@ -18,7 +18,7 @@
 
 | Check | Result |
 |---|---|
-| Backend pytest | 32 passed locally; prior CI passed all 37, with five new stopped-query admission checks awaiting the next run |
+| Backend pytest | 32 passed locally; all 42 passed in CI including 10 real PostgreSQL checks |
 | Frontend Vitest | 11 passed |
 | Dependency advisories | npm audit and pinned backend pip-audit found no known vulnerabilities |
 | TypeScript compilation | Passed |
@@ -36,7 +36,7 @@ Separate runtime, migration, scheduler and deployment service accounts were crea
 
 ## External blockers
 
-Browser automation failed to start because its sandbox helper reports setup refresh errors; the user is restoring browser access. Docker Desktop did not expose its Linux engine despite starting its UI and CLI. PostgreSQL migration/RLS checks passed on GitHub’s disposable PostgreSQL 17 service. Frontend clean installation, production build and tests now pass in CI after aligning to the locally verified Node 24 runtime. CI run 37385456920 passed backend, frontend and container jobs, including PostgreSQL 17 policy/runtime-role checks and Chromium smoke. No secrets were requested in chat or added to Git.
+Browser automation failed to start because its sandbox helper reports setup refresh errors; the user is restoring browser access. Docker Desktop did not expose its Linux engine despite starting its UI and CLI. PostgreSQL migration/RLS checks passed on GitHub’s disposable PostgreSQL 17 service. Frontend clean installation, production build and tests now pass in CI after aligning to the locally verified Node 24 runtime. CI run 37386497753 (commit 089e445) passed backend, frontend and container jobs, including dependency audit gates, including PostgreSQL 17 policy/runtime-role checks and Chromium smoke. No secrets were requested in chat or added to Git.
 
 ## Remaining release work
 
@@ -49,3 +49,5 @@ Browser automation failed to start because its sandbox helper reports setup refr
 7. Review deletion failure recovery, artifact orphan cleanup, recipe repair for drift, authenticated recipe replay and extraction quality evaluation before claiming every requested workflow production-ready.
 
 The passing tests establish specific local behavior; they do not establish live provider compatibility, deployment reliability or complete production readiness.
+
+Final code verification: https://github.com/omarsalama4/daleel/actions/runs/37386497753
