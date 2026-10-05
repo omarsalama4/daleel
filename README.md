@@ -18,5 +18,5 @@ The `frontend/` application is a **UI prototype with a stateful mock API**. It r
 
 From `frontend/`, install dependencies with `npm ci`, then use `npm run dev`, `npm run build`, `npm run lint`, or `npm run test`. The local Node installation must include a working npm launcher. Keep the mock adapter for design review only.
 
-The repository is private while the hosted beta, auth boundary, and data-handling controls are being built.
+The repository is public by the owner's choice. The hosted product remains an invite-only private beta; the backend auth and data-handling controls are not implemented yet.
 
