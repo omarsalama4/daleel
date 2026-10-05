@@ -18,7 +18,7 @@
 
 | Check | Result |
 |---|---|
-| Backend pytest | 26 passed; 3 PostgreSQL checks skipped locally |
+| Backend pytest | 27 passed; 9 PostgreSQL checks skipped locally; original three executed successfully in CI, expanded table coverage pending next CI |
 | Frontend Vitest | 11 passed |
 | TypeScript compilation | Passed |
 | Python lint | Passed |
@@ -31,9 +31,11 @@
 | Cloud Run deployment smoke / worker restart | Pending deployment |
 | Backup restore | Pending provider configuration and restore exercise |
 
+Separate runtime, migration, scheduler and deployment service accounts were created in the project. IAM bindings and GitHub workload identity are not configured yet.
+
 ## External blockers
 
-Browser automation failed to start because its sandbox helper reports setup refresh errors; the user is restoring browser access. Docker Desktop did not expose its Linux engine despite starting its UI and CLI. PostgreSQL migration/RLS checks passed on GitHub’s disposable PostgreSQL 17 service. Frontend CI failed at clean installation on Node 22; the pipeline and image builder are being aligned to the locally verified Node 24 runtime. No secrets were requested in chat or added to Git.
+Browser automation failed to start because its sandbox helper reports setup refresh errors; the user is restoring browser access. Docker Desktop did not expose its Linux engine despite starting its UI and CLI. PostgreSQL migration/RLS checks passed on GitHub’s disposable PostgreSQL 17 service. Frontend clean installation, production build and tests now pass in CI after aligning to the locally verified Node 24 runtime. CI run 37384918297 passed both jobs. No secrets were requested in chat or added to Git.
 
 ## Remaining release work
 

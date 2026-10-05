@@ -76,3 +76,14 @@ def test_context_resets_and_audit_is_append_only(engine, tenants):
         with engine.begin() as db:
             db.execute(text("SET LOCAL ROLE daleel_app"))
             db.execute(text("DELETE FROM audit"))
+
+
+@pytest.mark.parametrize("table", ["resources", "tasks", "spend", "session_secrets", "idempotency", "run_leases"])
+def test_every_tenant_table_enforces_policy(engine, table):
+    with engine.begin() as db:
+        assert db.scalar(text("SELECT relrowsecurity FROM pg_class WHERE oid=to_regclass(:table)"), {"table": table})
+        policy = db.execute(text("SELECT qual,with_check FROM pg_policies WHERE tablename=:table"), {"table": table}).one()
+        assert "daleel.workspace_id" in policy.qual
+        assert "daleel.workspace_id" in policy.with_check
+        db.execute(text("SET LOCAL ROLE daleel_app"))
+        assert db.scalar(text(f"SELECT count(*) FROM {table}")) == 0

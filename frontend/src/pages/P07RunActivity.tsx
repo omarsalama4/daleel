@@ -253,6 +253,12 @@ export const P07RunActivity: React.FC = () => {
         />
       )}
 
+      {run.activeGate?.safeActions.includes('review_recipe') && (
+        <button onClick={() => resolveGate('review_recipe')} className="px-3 py-2 rounded border border-line text-sm text-ink bg-surface">
+          Continue after recipe approval and successful replay
+        </button>
+      )}
+
       {/* 3. Stage Timeline */}
       <div className="p-5 bg-surface rounded border border-line space-y-3">
         <h3 className="section-title">Execution Stages</h3>

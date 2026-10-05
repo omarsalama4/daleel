@@ -296,3 +296,19 @@ def test_request_size_and_security_headers(client):
     response = client.get("/health")
     assert response.headers["X-Frame-Options"] == "DENY"
     assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
+
+
+
+def test_run_deletion_waits_for_worker_drain(client, app):
+    from daleel.db import RunLease
+    from datetime import datetime, timedelta, timezone
+    run = new_run(client)
+    wid = client.get("/api/v1/me").json()["workspace"]["id"]
+    client.post(f"/api/v1/runs/{run['id']}/actions", json={"action": "cancel"})
+    with app.state.database.session(wid) as db:
+        db.add(RunLease(run_id=run["id"], workspace_id=wid, owner="worker",
+            expires_at=(datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()))
+    response = client.post(f"/api/v1/runs/{run['id']}/deletion")
+    assert response.status_code == 409
+    assert response.json()["code"] == "WORKER_DRAINING"
+    assert client.get(f"/api/v1/runs/{run['id']}").status_code == 200

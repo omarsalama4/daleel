@@ -19,7 +19,7 @@ from sqlalchemy import select, delete
 from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from .config import get_settings
-from .db import Database, Resource, Workspace, Task, Invitation, Share, Audit, Secret, Idempotency, uid, now, put, resource, resources
+from .db import Database, Resource, Workspace, Task, Invitation, Share, Audit, Secret, Idempotency, RunLease, uid, now, put, resource, resources
 from .auth import Auth, actor, operator, identity
 from .errors import Problem
 from .schemas import (CreateRun, PlanPatch, RunAction, GateAction, SettingsPatch, FeedbackRequest,
@@ -409,6 +409,11 @@ def make_app(settings=None):
         if running and not running.done():
             running.cancel()
             await asyncio.gather(running, return_exceptions=True)
+        with database.session(a.workspace_id) as db:
+            need(db, a.workspace_id, run_id, "run", lock=True)
+            lease = db.get(RunLease, run_id)
+            if lease and lease.expires_at > now():
+                raise Problem(409, "WORKER_DRAINING", "Worker is still stopping; retry deletion after it releases the run", True)
         await runtime.purge_checkpoint(a.workspace_id, run_id)
         return delete_item(a.workspace_id, run_id, "run")
 
