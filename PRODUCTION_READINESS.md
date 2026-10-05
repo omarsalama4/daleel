@@ -7,7 +7,7 @@
 - Neon CLI authorization succeeded using an ignored directory with restricted Windows permissions. The available organization is Vercel-managed; Neon rejected creating the dedicated Daleel project there. A directly managed free Neon organization/project is required.
 - Added durable deletion manifests, immediate capability revocation, cleanup retries and recovery of abandoned export uploads.
 - Added recipe repair versions, renewed preview/approval, explicitly selected authenticated replay, actual history comparison and Python script downloads.
-- Local verification: 40 backend checks passed (10 PostgreSQL checks require CI), 12 frontend checks passed, lint/type checks and production build passed. Live-provider and deployed checks remain pending.
+- Local verification: 40 backend checks passed locally; all 50 passed in CI including 10 PostgreSQL checks. All 12 frontend checks, lint/type checks, production build, dependency audits and container/Chromium smoke passed. Live-provider and deployed checks remain pending.
 
 ## Completed this pass
 
@@ -25,8 +25,8 @@
 
 | Check | Result |
 |---|---|
-| Backend pytest | 32 passed locally; all 42 passed in CI including 10 real PostgreSQL checks |
-| Frontend Vitest | 11 passed |
+| Backend pytest | 40 passed locally; all 50 passed in CI including 10 real PostgreSQL checks |
+| Frontend Vitest | 12 passed |
 | Dependency advisories | npm audit and pinned backend pip-audit found no known vulnerabilities |
 | TypeScript compilation | Passed |
 | Python lint | Passed |
@@ -57,4 +57,6 @@ Browser automation failed to start because its sandbox helper reports setup refr
 
 The passing tests establish specific local behavior; they do not establish live provider compatibility, deployment reliability or complete production readiness.
 
-Final code verification: https://github.com/omarsalama4/daleel/actions/runs/37386497753
+Latest code verification (commit 1157034): https://github.com/omarsalama4/daleel/actions/runs/37389602977
+
+All three jobs completed successfully: backend, frontend and container. This verifies the committed code and image; real-account sign-in, hosted model/search calls, hosted storage and deployment recovery still require provider setup.
