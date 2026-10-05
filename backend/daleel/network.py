@@ -61,9 +61,12 @@ class Fetcher:
         original = httpx.URL(canonical(url))
         addresses = await resolve_public(str(original), self.settings)
         pinned = original.copy_with(host=addresses[0])
-        request_headers = {"Host": original.host, **(headers or {})}
+        request_headers = {"Host": original.host, **(headers or {}), "Accept-Encoding": "identity"}
         async with self.client.stream(method, pinned, headers=request_headers, content=content,
                                       extensions={"sni_hostname": original.host.encode()}) as response:
+            # Avoid unbounded decoder allocation before the page cap is checked.
+            if response.headers.get("content-encoding", "identity").lower() not in ("", "identity"):
+                raise Problem(415, "UNSUPPORTED_CONTENT", "Source ignored the bounded identity encoding request")
             body = bytearray()
             max_bytes = limit or self.settings.max_page_bytes
             async for chunk in response.aiter_bytes():

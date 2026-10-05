@@ -3,6 +3,8 @@ import copy
 import hashlib
 import json
 import logging
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from typing import TypedDict
 from sqlalchemy import select
@@ -10,7 +12,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.types import interrupt, Command
 from opentelemetry import trace
 from .db import Task, Workspace, Secret, RunLease, now, uid, resource, resources, put
-from .services import need, event, add_task, TERMINAL
+from .services import need, event, add_task, TERMINAL, active_seconds
 from .network import Fetcher, canonical, hostname, parse_page, resolve_public
 from .agents import extract_page
 from .errors import Problem
@@ -18,6 +20,7 @@ from .storage import require_storage
 
 logger = logging.getLogger("daleel.worker")
 tracer = trace.get_tracer("daleel.worker")
+worker_owner = ContextVar("daleel_worker_owner", default=None)
 
 
 class RunState(TypedDict, total=False):
@@ -31,6 +34,20 @@ class Runtime:
         self.settings, self.database, self.models, self.search, self.budget = settings, database, models, search, budget
         self.running = {}
 
+    @contextmanager
+    def session(self, wid):
+        with self.database.session(wid) as db:
+            ownership = worker_owner.get()
+            if ownership and ownership[0] == wid:
+                _, rid, owner = ownership
+                # Use the same workspace-first lock order as run claims and page commits.
+                db.scalar(select(Workspace).where(Workspace.id == wid).with_for_update())
+                lease = db.scalar(select(RunLease).where(RunLease.run_id == rid,
+                    RunLease.workspace_id == wid).with_for_update())
+                if not lease or lease.owner != owner or lease.expires_at <= now():
+                    raise asyncio.CancelledError("Worker lease lost")
+            yield db
+
     async def dispatch(self, wid, rid):
         if self.settings.worker_mode == "inline":
             if (wid, rid) not in self.running or self.running[(wid, rid)].done():
@@ -43,14 +60,72 @@ class Runtime:
                 existing.add_done_callback(lambda t: asyncio.create_task(self.redispatch_queued(wid, rid))
                     if not t.cancelled() else None)
         elif self.settings.worker_mode == "cloud_run":
-            from google.cloud import run_v2
-            client = run_v2.JobsAsyncClient()
-            await client.run_job(request={"name": self.settings.cloud_run_job,
-                "overrides": {"container_overrides": [{"args": ["-m", "daleel.worker", "--workspace-id", wid, "--run-id", rid]}]}})
+            # The queued run itself is the durable dispatch ledger. A timed claim prevents
+            # repeated scheduler/API launches; uncertain launches are safe under RunLease.
+            with self.session(wid) as db:
+                run = resource(db, wid, rid, "run", lock=True)
+                if not run or run.data["status"] != "queued":
+                    return
+                dispatch = run.data.get("dispatch", {})
+                if dispatch.get("retryAt", "") > now():
+                    return
+                run.data = {**run.data, "dispatch": {"attempts": dispatch.get("attempts", 0) + 1,
+                    "retryAt": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(), "state": "pending"}}
+            try:
+                from google.cloud import run_v2
+                async with run_v2.JobsAsyncClient() as client:
+                    await asyncio.wait_for(client.run_job(request={"name": self.settings.cloud_run_job,
+                        "overrides": {"container_overrides": [{"args": ["-m", "daleel.worker", "--workspace-id", wid, "--run-id", rid]}]}}), 30)
+            except Exception as exc:
+                logger.warning("Dispatch deferred for run %s (%s)", rid, type(exc).__name__)
+                # Keep queued state: recovery retries after the durable retry timestamp.
+                with self.session(wid) as db:
+                    run = resource(db, wid, rid, "run", lock=True)
+                    if run and run.data["status"] == "queued":
+                        run.data = {**run.data, "dispatch": {**run.data["dispatch"], "state": "uncertain"}}
+
         # External mode is consumed by the durable worker CLI, not an API process task.
 
+    async def recover(self):
+        """Bounded scan; scheduled recovery dispatches jobs rather than doing every crawl."""
+        with self.database.session() as db:
+            workspaces = list(db.scalars(select(Workspace.id)))
+        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        recovered = 0
+        for wid in workspaces:
+            with self.session(wid) as db:
+                ids = [r.id for r in resources(db, wid, "run") if r.data["status"] in ("planning", "queued", "running")]
+            for rid in ids:
+                launch = False
+                with self.session(wid) as db:
+                    run = resource(db, wid, rid, "run", lock=True)
+                    if not run:
+                        continue
+                    lease = db.get(RunLease, rid)
+                    if lease and lease.expires_at > now():
+                        continue
+                    if run.data["status"] == "planning":
+                        if run.data["createdAt"] < cutoff:
+                            run.data = {**run.data, "status": "failed", "finishedAt": now(),
+                                "stopReason": "Planning interrupted; submit a new query"}
+                            event(db, run, "planning_failed", "Interrupted planning recovered without executing an unapproved plan")
+                        continue
+                    if run.data["status"] == "running":
+                        run.data = {**run.data, "status": "queued", "dispatch": {}}
+                        event(db, run, "worker_recovery", "Expired worker scheduled for recovery")
+                    launch = run.data["status"] == "queued"
+                if launch:
+                    if self.settings.worker_mode == "external":
+                        await self.execute(wid, rid)
+                    else:
+                        await self.dispatch(wid, rid)
+                    recovered += 1
+                if recovered >= 100:
+                    return recovered
+        return recovered
+
     async def redispatch_queued(self, wid, rid):
-        with self.database.session(wid) as db:
+        with self.session(wid) as db:
             run = resource(db, wid, rid, "run")
             queued = run and run.data["status"] == "queued"
         if queued:
@@ -90,7 +165,7 @@ class Runtime:
 
     async def execute(self, wid, rid):
         owner = uid()
-        with self.database.session(wid) as db:
+        with self.session(wid) as db:
             need(db, wid, rid, "run", lock=True)
             lease = db.get(RunLease, rid)
             if lease and lease.expires_at > now():
@@ -105,7 +180,8 @@ class Runtime:
             else:
                 db.add(RunLease(run_id=rid, workspace_id=wid, owner=owner,
                     expires_at=(datetime.now(timezone.utc) + timedelta(seconds=self.settings.lease_seconds)).isoformat()))
-        pulse = asyncio.create_task(self.run_heartbeat(wid, rid, owner))
+        ownership_token = worker_owner.set((wid, rid, owner))
+        pulse = asyncio.create_task(self.run_heartbeat(wid, rid, owner, asyncio.current_task()))
         # Checkpoints contain identifiers and gate metadata; no passwords, cookies, or HTML.
         config = {"configurable": {"thread_id": f"{wid}:{rid}"}, "recursion_limit": 100}
         try:
@@ -127,16 +203,17 @@ class Runtime:
             raise
         except Exception as exc:
             logger.error("Worker error for run %s (%s)", rid, type(exc).__name__)
-            with self.database.session(wid) as db:
+            with self.session(wid) as db:
                 run = resource(db, wid, rid, "run", lock=True)
-                if run and run.data["status"] not in TERMINAL and run.data["status"] != "paused":
+                if run and (lease := db.get(RunLease, rid)) and lease.owner == owner and run.data["status"] not in TERMINAL and run.data["status"] not in ("paused", "needs_attention"):
                     run.data = {**run.data, "status": "partial", "finishedAt": now(),
                                 "stopReason": "Worker interrupted; completed findings retained"}
                     event(db, run, "worker_error", "Worker could not complete the run; retry unfinished tasks")
         finally:
+            worker_owner.reset(ownership_token)
             pulse.cancel()
             await asyncio.gather(pulse, return_exceptions=True)
-            with self.database.session(wid) as db:
+            with self.session(wid) as db:
                 lease = db.get(RunLease, rid)
                 if lease and lease.owner == owner:
                     for task in db.scalars(select(Task).where(Task.workspace_id == wid, Task.run_id == rid, Task.state == "leased")):
@@ -144,25 +221,38 @@ class Runtime:
                         task.fencing_token += 1
                     db.delete(lease)
 
-    async def run_heartbeat(self, wid, rid, owner):
+    async def run_heartbeat(self, wid, rid, owner, execution):
         while True:
             await asyncio.sleep(max(2, self.settings.lease_seconds / 3))
-            with self.database.session(wid) as db:
+            with self.session(wid) as db:
                 lease = db.get(RunLease, rid)
                 if not lease or lease.owner != owner:
+                    execution.cancel()
                     return
                 lease.expires_at = (datetime.now(timezone.utc) + timedelta(seconds=self.settings.lease_seconds)).isoformat()
 
     async def invoke(self, graph, config, wid, rid):
-        with self.database.session(wid) as db:
+        with self.session(wid) as db:
             run = need(db, wid, rid, "run", lock=True)
             if run.data["status"] not in ("queued", "running"):
                 return
-            run.data = {**run.data, "status": "running", "startedAt": run.data.get("startedAt") or now()}
+            run.data = {**run.data, "status": "running", "startedAt": run.data.get("startedAt") or now(),
+                        "activeSince": run.data.get("activeSince") or now()}
             event(db, run, "stage_start", "Discovery and crawl worker started")
         saved = await graph.aget_state(config)
         initial = Command(resume={"resolved": True}) if "human_review" in saved.next else {"workspace_id": wid, "run_id": rid, "gate": None}
-        await graph.ainvoke(initial, config, durability="sync")
+        with self.session(wid) as db:
+            run = need(db, wid, rid, "run")
+            remaining = max(0.01, run.data["limits"]["minutes"] * 60 - active_seconds(run.data))
+        try:
+            await asyncio.wait_for(graph.ainvoke(initial, config, durability="sync"), remaining)
+        except TimeoutError:
+            with self.session(wid) as db:
+                run = resource(db, wid, rid, "run", lock=True)
+                if run and run.data["status"] == "running":
+                    run.data = {**run.data, "status": "partial", "finishedAt": now(),
+                        "stopReason": "Time limit reached"}
+                    event(db, run, "time_limit", "Active execution deadline reached; completed findings retained")
 
     async def human_review(self, state):
         interrupt(state.get("gate"))
@@ -170,7 +260,7 @@ class Runtime:
 
     async def discover(self, state):
         wid, rid = state["workspace_id"], state["run_id"]
-        with self.database.session(wid) as db:
+        with self.session(wid) as db:
             run = need(db, wid, rid, "run")
             seeds = run.data["seedUrls"]
             done = db.scalar(select(Task).where(Task.workspace_id == wid, Task.run_id == rid,
@@ -184,7 +274,7 @@ class Runtime:
                 seeds = await self.search.discover(query)
             except (Problem, Exception) as exc:
                 code = exc.code if isinstance(exc, Problem) else "SEARCH_UNAVAILABLE"
-                with self.database.session(wid) as db:
+                with self.session(wid) as db:
                     run = need(db, wid, rid, "run", lock=True)
                     run.data = {**run.data, "status": "partial", "stopReason": code,
                                 "finishedAt": now()}
@@ -200,14 +290,14 @@ class Runtime:
                 safe_seeds.append(url)
             except (Problem, ValueError):
                 continue
-        with self.database.session(wid) as db:
+        with self.session(wid) as db:
             run = need(db, wid, rid, "run", lock=True)
             if run.data["status"] != "running":
                 return {"gate": None}
             task = db.scalar(select(Task).where(Task.workspace_id == wid, Task.run_id == rid, Task.kind == "discovery"))
             task.state = "succeeded"
             domains = []
-            for url in safe_seeds:
+            for url in safe_seeds[:run.data["limits"]["pages"]]:
                 host = hostname(url)
                 if host not in domains:
                     if len(domains) >= run.data["limits"]["domains"]:
@@ -221,12 +311,11 @@ class Runtime:
         return {"gate": None}
 
     def claim(self, wid, rid):
-        with self.database.session(wid) as db:
+        with self.session(wid) as db:
             run = need(db, wid, rid, "run", lock=True)
             if run.data["status"] != "running":
                 return None
-            started = datetime.fromisoformat(run.data["startedAt"])
-            elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+            elapsed = active_seconds(run.data)
             usage = run.data["usage"]
             if elapsed >= run.data["limits"]["minutes"] * 60 or usage["downloadMb"] >= run.data["limits"]["downloadMb"]:
                 run.data = {**run.data, "stopReason": "Time or download limit reached"}
@@ -266,7 +355,7 @@ class Runtime:
     async def heartbeat(self, wid, claimed):
         while True:
             await asyncio.sleep(max(2, self.settings.lease_seconds / 3))
-            with self.database.session(wid) as db:
+            with self.session(wid) as db:
                 task = db.scalar(select(Task).where(Task.id == claimed["id"], Task.workspace_id == wid).with_for_update())
                 if not task or task.state != "leased" or task.fencing_token != claimed["fence"]:
                     return
@@ -276,7 +365,7 @@ class Runtime:
         wid, rid = state["workspace_id"], state["run_id"]
         fetcher = Fetcher(self.settings)
         def consume(size):
-            with self.database.session(wid) as db:
+            with self.session(wid) as db:
                 run = need(db, wid, rid, "run", lock=True)
                 used = run.data["usage"].get("downloadBytes", 0) + size
                 if used > run.data["limits"]["downloadMb"] * 1_000_000:
@@ -292,11 +381,11 @@ class Runtime:
                 if not batch:
                     break
                 await asyncio.gather(*(self.process(wid, rid, item, fetcher) for item in batch))
-                with self.database.session(wid) as db:
+                with self.session(wid) as db:
                     run = need(db, wid, rid, "run")
                     if run.data["status"] != "running":
                         break
-            with self.database.session(wid) as db:
+            with self.session(wid) as db:
                 run = need(db, wid, rid, "run", lock=True)
                 if not run.data.get("activeGate") and run.data["status"] == "running":
                     blocked = db.scalar(select(Task).where(Task.workspace_id == wid, Task.run_id == rid,
@@ -315,7 +404,7 @@ class Runtime:
             run = claimed["run"]
             cookies, authenticated, allowed_ai = None, False, False
             session_state = None
-            with self.database.session(wid) as db:
+            with self.session(wid) as db:
                 workspace = db.get(Workspace, wid)
                 allowed_ai = workspace.data.get("authenticatedContentAllowed", False)
                 for session in resources(db, wid, "session"):
@@ -336,7 +425,7 @@ class Runtime:
                 if self.settings.browser_enabled and len(page["text"]) < 200 and "<script" in fetched["html"]:
                     from .browser import render_page
                     page = parse_page(await render_page(fetcher, fetched, run.get("allowedDomains", []), cookies, session_state))
-                with self.database.session(wid) as db:
+                with self.session(wid) as db:
                     approved = next((r for r in resources(db, wid, "recipe")
                         if r.data["status"] == "active" and r.data["site"] == hostname(page["url"])
                         and r.data["task"] == run["query"]), None)
@@ -346,7 +435,7 @@ class Runtime:
                     page = apply_recipe(recipe, page)
                 finding = await extract_page(self.models, wid, run, page,
                                              authenticated=authenticated and not allowed_ai)
-            with self.database.session(wid) as db:
+            with self.session(wid) as db:
                 current = need(db, wid, rid, "run", lock=True)
                 task = db.scalar(select(Task).where(Task.id == claimed["id"], Task.workspace_id == wid).with_for_update())
                 if not task or task.fencing_token != claimed["fence"] or task.state != "leased" or current.data["status"] == "cancelled":
@@ -418,7 +507,7 @@ class Runtime:
                 if finding["status"] in ("relevant", "incomplete"):
                     self.propose_recipe(db, wid, current, page)
         except Problem as exc:
-            with self.database.session(wid) as db:
+            with self.session(wid) as db:
                 run = need(db, wid, rid, "run", lock=True)
                 task = db.scalar(select(Task).where(Task.id == claimed["id"], Task.workspace_id == wid).with_for_update())
                 if not task or task.fencing_token != claimed["fence"] or task.state != "leased":
@@ -451,7 +540,7 @@ class Runtime:
                     task.state = "skipped" if exc.code in ("ROBOTS_DISALLOWED", "UNSUPPORTED_CONTENT", "SSRF_BLOCKED", "REDIRECT_SCOPE") else "failed"
                     event(db, run, "page_skipped" if task.state == "skipped" else "page_failed", exc.detail, task.payload["url"])
         except Exception as exc:
-            with self.database.session(wid) as db:
+            with self.session(wid) as db:
                 run = need(db, wid, rid, "run", lock=True)
                 task = db.scalar(select(Task).where(Task.id == claimed["id"], Task.workspace_id == wid).with_for_update())
                 if task and task.fencing_token == claimed["fence"] and task.state == "leased":
@@ -481,7 +570,7 @@ class Runtime:
 
     async def report(self, state):
         wid, rid = state["workspace_id"], state["run_id"]
-        with self.database.session(wid) as db:
+        with self.session(wid) as db:
             run = need(db, wid, rid, "run", lock=True)
             if run.data["status"] != "running":
                 return {}
@@ -494,7 +583,7 @@ class Runtime:
             usage = {**run.data["usage"], "pagesSkipped": sum(t.state == "skipped" for t in tasks),
                      "pagesFailed": sum(t.state == "failed" for t in tasks),
                      "pagesBlocked": sum(t.state == "blocked" for t in tasks),
-                     "elapsedSeconds": (datetime.now(timezone.utc) - datetime.fromisoformat(run.data["startedAt"])).total_seconds()}
+                     "elapsedSeconds": active_seconds(run.data)}
             for task in tasks:
                 if task.state == "ready":
                     task.state = "skipped"

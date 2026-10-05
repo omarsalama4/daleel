@@ -38,7 +38,12 @@ class Auth:
                                     options={"require": ["exp", "sub", "iss", "aud"]})
                 if claims.get("email_verified") is not True and claims.get("emailVerified") is not True:
                     raise ValueError("Verified email required")
-                subject, email = claims["sub"], claims["email"].lower()
+                subject, email = claims["sub"], claims["email"]
+                if not isinstance(subject, str) or not subject or len(subject) > 255:
+                    raise ValueError("Invalid subject")
+                if not isinstance(email, str) or "@" not in email or len(email) > 320:
+                    raise ValueError("Invalid email")
+                email = email.lower()
             except (jwt.PyJWTError, ValueError, KeyError):
                 raise Problem(401, "UNAUTHENTICATED", "Sign in with a verified invited account") from None
         with self.database.session() as db:

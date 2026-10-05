@@ -1,4 +1,5 @@
 import json
+import asyncio
 import math
 import httpx
 from pydantic import BaseModel
@@ -50,15 +51,19 @@ class Models:
                     response.raise_for_status()
                     result = response.json()
                     usage = result.get("usage", {})
-                    if not {"prompt_tokens", "completion_tokens"}.issubset(usage):
+                    if not all(isinstance(usage.get(k), int) and not isinstance(usage[k], bool) and usage[k] >= 0
+                               for k in ("prompt_tokens", "completion_tokens")):
                         self.budget.settle(wid, reservation, None, {"usageMissing": True})
                     else:
                         actual = (usage["prompt_tokens"] * price_in + usage["completion_tokens"] * price_out) / 1e6
                         reported = usage.get("cost")
-                        if isinstance(reported, (int, float)) and math.isfinite(reported):
+                        if isinstance(reported, (int, float)) and math.isfinite(reported) and reported >= 0:
                             actual = max(actual, reported)
                         self.budget.settle(wid, reservation, actual, usage)
                     return schema.model_validate_json(result["choices"][0]["message"]["content"])
+            except asyncio.CancelledError:
+                self.budget.settle(wid, reservation, None, {"providerOutcome": "cancelled_uncertain"})
+                raise
             except (httpx.HTTPError, ValueError, KeyError, IndexError):
                 # Timeouts and ambiguous 5xx may be billed; hold the reservation rather than refund it.
                 self.budget.settle(wid, reservation, None, {"providerOutcome": "uncertain"})

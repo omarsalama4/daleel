@@ -19,6 +19,8 @@ interface AuthContextType {
   getBearerToken: () => Promise<string | null>;
   registerInvited: (email: string, password: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  completePasswordReset: (token: string, password: string) => Promise<void>;
+  signInForInvitation: (email: string, password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -128,6 +130,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setAdapterType,
         getBearerToken,
         registerInvited: async (email, password) => { if (!demo) await neonAdapter.registerInvited(email, password); },
+        signInForInvitation: async (email, password) => { if (!demo) await neonAdapter.signInForInvitation(email, password); },
+        completePasswordReset: async (token, password) => { if (!demo) await neonAdapter.completePasswordReset(token, password); },
         resetPassword: async (email) => { if (!demo) await neonAdapter.resetPassword(email); },
       }}
     >

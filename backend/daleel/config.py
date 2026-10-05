@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     broker_sites: dict[str, dict] = {}
     broker_public_url: str = "http://127.0.0.1:8001"
     broker_max_connections: int = 2
+    frontend_dist: Path = Path("static")
     storage_mode: Literal["local", "s3"] = "local"
     storage_root: Path = Path("data/artifacts")
     s3_endpoint: str = ""
@@ -51,6 +52,8 @@ class Settings(BaseSettings):
     max_page_bytes: int = 2_000_000
     lease_seconds: int = 180
     worker_concurrency: int = 2
+    max_active_runs_per_workspace: int = 2
+    max_daily_runs_per_workspace: int = 50
     allow_test_hosts: list[str] = []
 
     @model_validator(mode="after")
@@ -74,6 +77,8 @@ class Settings(BaseSettings):
                 raise ValueError("Hosted sign-in requires HTTPS, broker authentication, and an encryption key")
         if self.auth_mode == "development" and len(self.dev_token) < 24:
             raise ValueError("Development auth requires a local token of at least 24 characters")
+        if min(self.max_active_runs_per_workspace, self.max_daily_runs_per_workspace, self.lease_seconds, self.worker_concurrency) < 1:
+            raise ValueError("Run admission and worker settings must be positive")
         if self.openrouter_model and not self.openrouter_model.endswith(":free"):
             raise ValueError("The beta OpenRouter route must use an explicit :free model")
         if self.ai_input_usd_per_million < 0 or self.ai_output_usd_per_million < 0:
@@ -84,3 +89,24 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings():
     return Settings()
+
+
+class BrokerSettings(BaseSettings):
+    """Separate broker configuration: never mount API/database/model secrets here."""
+    model_config = SettingsConfigDict(env_prefix="DALEEL_", env_file=".env", extra="ignore")
+    env: Literal["development", "test", "production"] = "production"
+    session_broker_token: str = ""
+    broker_public_url: str = ""
+    broker_sites: dict[str, dict] = {}
+    broker_max_connections: int = 2
+    max_page_bytes: int = 2_000_000
+    host_delay_seconds: float = 1.0
+    allow_test_hosts: list[str] = []
+
+    @model_validator(mode="after")
+    def boundary(self):
+        if len(self.session_broker_token) < 32:
+            raise ValueError("Broker requires a service token of at least 32 characters")
+        if self.env == "production" and (not self.broker_public_url.startswith("https://") or self.allow_test_hosts):
+            raise ValueError("Production broker requires HTTPS and no test host exceptions")
+        return self

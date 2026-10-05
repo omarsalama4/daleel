@@ -32,6 +32,7 @@ const P19LimitsStorageSettings = lazy(() => import('./pages/P19LimitsStorageSett
 const P20OperatorInvitations = lazy(() => import('./pages/P20OperatorInvitations').then(m => ({ default: m.P20OperatorInvitations })));
 const P21OperatorWorkspaces = lazy(() => import('./pages/P21OperatorWorkspaces').then(m => ({ default: m.P21OperatorWorkspaces })));
 const P22OperatorAccessAudit = lazy(() => import('./pages/P22OperatorAccessAudit').then(m => ({ default: m.P22OperatorAccessAudit })));
+const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
 const NotFound = lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
 
 const queryClient = new QueryClient({
@@ -101,6 +102,7 @@ export const AppRoutes: React.FC = () => {
         {/* Public / Invite Routes */}
         <Route path="/invite/:token" element={<P01InvitationAcceptance />} />
         <Route path="/sign-in" element={<P02SignInAccessProblem />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Workspace Owner Shell Routes (P03-P19) */}
         <Route

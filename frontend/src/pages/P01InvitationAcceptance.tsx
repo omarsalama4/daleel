@@ -8,12 +8,13 @@ import { Compass, Shield, AlertTriangle, ArrowRight } from 'lucide-react';
 export const P01InvitationAcceptance: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const api = useApi();
-  const { claimInvitation, registerInvited } = useAuth();
+  const { claimInvitation, registerInvited, signInForInvitation } = useAuth();
   const navigate = useNavigate();
 
   const [preview, setPreview] = useState<InvitationPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [password, setPassword] = useState('');
+  const [existingAccount, setExistingAccount] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +41,9 @@ export const P01InvitationAcceptance: React.FC = () => {
     setSubmitting(true);
     setError(null);
     try {
-      if (password) {
+      if (password && existingAccount) {
+        await signInForInvitation(preview!.email, password);
+      } else if (password) {
         await registerInvited(preview!.email, password);
         setError('Verify your email using the Neon message, then return to this invitation and accept while signed in.');
         setPassword('');
@@ -116,14 +119,18 @@ export const P01InvitationAcceptance: React.FC = () => {
               <div className="text-muted-ink">Invited Account:</div>
               <div className="font-semibold text-ink font-mono-tech">{preview?.email}</div>
               <div className="text-[11px] text-muted-ink pt-1 border-t border-line">
-                Personal workspace will be provisioned in data region: <span className="text-ink">aws-us-east-1</span>.
+                Your invitation creates an isolated personal workspace.
               </div>
             </div>
 
+            <label className="flex items-center gap-2 text-xs text-muted-ink">
+              <input type="checkbox" checked={existingAccount} onChange={e => setExistingAccount(e.target.checked)} />
+              I already have a Neon account for Daleel
+            </label>
             {/* 2. Authentication Control */}
             <div>
               <label className="block text-xs font-medium text-muted-ink mb-1">
-                New account password (leave blank if already signed in)
+                {existingAccount ? 'Account password (leave blank if already signed in)' : 'New account password'}
               </label>
               <input
                 type="password"

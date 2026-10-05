@@ -7,9 +7,35 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-disposable-only
+          POSTGRES_DB: daleel_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DALEEL_TEST_POSTGRES_URL: postgresql+psycopg://postgres:ci-disposable-only@localhost:5432/daleel_ci
     environment: beta
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify release source
+        run: |
+          pip install -r backend/requirements.lock && pip install -e 'backend[dev]'
+          ruff check backend/daleel backend/migrations
+          pytest backend/tests -q
+          npm --prefix frontend ci
+          npm --prefix frontend test
+          npm --prefix frontend run build
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -19,14 +45,36 @@ jobs:
         env:
           PROJECT: ${{ vars.GCP_PROJECT_ID }}
           REGION: ${{ vars.GCP_REGION }}
+          NEON_AUTH_URL: ${{ vars.NEON_AUTH_URL }}
         run: |
-          gcloud builds submit --project="$PROJECT" --config=deploy/cloudbuild.yaml --substitutions="_REGION=$REGION,_IMAGE_TAG=$GITHUB_SHA" .
+          gcloud builds submit --project="$PROJECT" --config=deploy/cloudbuild.yaml --substitutions="_REGION=$REGION,_IMAGE_TAG=$GITHUB_SHA,_NEON_AUTH_URL=$NEON_AUTH_URL" .
       - name: Deploy worker and API
         env:
           PROJECT: ${{ vars.GCP_PROJECT_ID }}
           REGION: ${{ vars.GCP_REGION }}
           RUNTIME_ACCOUNT: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+          MIGRATION_ACCOUNT: ${{ vars.GCP_MIGRATION_SERVICE_ACCOUNT }}
+          SCHEDULER_ACCOUNT: ${{ vars.GCP_SCHEDULER_SERVICE_ACCOUNT }}
+          RUNTIME_SECRET_VERSION: ${{ vars.RUNTIME_SECRET_VERSION }}
+          MIGRATION_SECRET_VERSION: ${{ vars.MIGRATION_SECRET_VERSION }}
         run: |
+          test -n "$RUNTIME_SECRET_VERSION" && test -n "$MIGRATION_SECRET_VERSION"
+          test "$RUNTIME_SECRET_VERSION" != latest && test "$MIGRATION_SECRET_VERSION" != latest
           IMAGE="$REGION-docker.pkg.dev/$PROJECT/daleel/backend:$GITHUB_SHA"
-          gcloud run jobs deploy daleel-worker --project="$PROJECT" --region="$REGION" --image="$IMAGE" --command=python --args=-m,daleel.worker --tasks=1 --parallelism=1 --max-retries=0 --task-timeout=30m --memory=2Gi --cpu=1 --service-account="$RUNTIME_ACCOUNT" --set-secrets=/app/.env=daleel-runtime-env:latest
-          gcloud run deploy daleel-api --project="$PROJECT" --region="$REGION" --image="$IMAGE" --memory=512Mi --cpu=1 --max-instances=2 --concurrency=20 --service-account="$RUNTIME_ACCOUNT" --set-secrets=/app/.env=daleel-runtime-env:latest --allow-unauthenticated
+          gcloud run jobs deploy daleel-migrate --project="$PROJECT" --region="$REGION" --image="$IMAGE" --command=sh --args=-c,'python -m alembic -c /app/alembic.ini upgrade head && python -m daleel.bootstrap' --tasks=1 --max-retries=0 --task-timeout=10m --service-account="$MIGRATION_ACCOUNT" --set-secrets=DALEEL_MIGRATION_DATABASE_URL=daleel-migration-database:$MIGRATION_SECRET_VERSION
+          gcloud run jobs execute daleel-migrate --project="$PROJECT" --region="$REGION" --wait
+          gcloud run jobs deploy daleel-worker --project="$PROJECT" --region="$REGION" --image="$IMAGE" --command=python --args=-m,daleel.worker --tasks=1 --parallelism=1 --max-retries=0 --task-timeout=30m --memory=2Gi --cpu=1 --service-account="$RUNTIME_ACCOUNT" --set-secrets=/app/.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION
+          gcloud run jobs deploy daleel-recovery --project="$PROJECT" --region="$REGION" --image="$IMAGE" --command=python --args=-m,daleel.worker,--recover --tasks=1 --max-retries=0 --task-timeout=10m --service-account="$RUNTIME_ACCOUNT" --set-secrets=/app/.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION
+          gcloud run deploy daleel-api --project="$PROJECT" --region="$REGION" --image="$IMAGE" --memory=512Mi --cpu=1 --max-instances=2 --concurrency=20 --service-account="$RUNTIME_ACCOUNT" --set-secrets=/app/.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION --allow-unauthenticated --no-traffic --tag candidate
+          CANDIDATE=$(gcloud run services describe daleel-api --project="$PROJECT" --region="$REGION" --format=json | python -c 'import json,sys; print(next(t["url"] for t in json.load(sys.stdin)["status"]["traffic"] if t.get("tag")=="candidate"))')
+          curl --fail --retry 5 --retry-delay 3 "$CANDIDATE/ready"
+          curl --fail "$CANDIDATE/sign-in" | grep -q '<div id="root">'
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$CANDIDATE/api/v1/me")" = 401
+          JOB_URI="https://run.googleapis.com/v2/projects/$PROJECT/locations/$REGION/jobs/daleel-recovery:run"
+          if gcloud scheduler jobs describe daleel-recovery --project="$PROJECT" --location="$REGION" >/dev/null 2>&1; then
+            gcloud scheduler jobs update http daleel-recovery --project="$PROJECT" --location="$REGION" --schedule='*/5 * * * *' --uri="$JOB_URI" --http-method=POST --oauth-service-account-email="$SCHEDULER_ACCOUNT"
+          else
+            gcloud scheduler jobs create http daleel-recovery --project="$PROJECT" --location="$REGION" --schedule='*/5 * * * *' --uri="$JOB_URI" --http-method=POST --oauth-service-account-email="$SCHEDULER_ACCOUNT"
+          fi
+          REVISION=$(gcloud run services describe daleel-api --project="$PROJECT" --region="$REGION" --format='value(status.latestCreatedRevisionName)')
+          gcloud run services update-traffic daleel-api --project="$PROJECT" --region="$REGION" --to-revisions="$REVISION=100"

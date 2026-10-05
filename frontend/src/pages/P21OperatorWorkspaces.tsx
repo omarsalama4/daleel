@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useOperatorWorkspaces } from '../services/api/queries';
 import { useApi } from '../services/api';
@@ -28,12 +28,21 @@ export const P21OperatorWorkspaces: React.FC = () => {
   const [isAuditing, setIsAuditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!activeGrant) return;
+    const timer = window.setTimeout(() => { setActiveGrant(null); setSupportContent(null); },
+      Math.max(0, Date.parse(activeGrant.expiresAt) - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [activeGrant]);
+
   const handleRequestSupport = async (workspaceId: string) => {
     if (supportPurpose.trim().length < 10 || !supportItemId.trim()) {
       setError('A documented non-empty operational reason is required before inspecting user content.');
       return;
     }
     setError(null);
+    setSupportContent(null);
+    setActiveGrant(null);
     setIsAuditing(true);
     try {
       const grant = await api.requestAuditedSupportAccess({

@@ -13,7 +13,8 @@ from cryptography.fernet import Fernet
 from fastapi import FastAPI, Depends, Header, Query
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, delete
 from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -64,11 +65,22 @@ def make_app(settings=None):
     async def request_context(request, call_next):
         span_context = trace.get_current_span().get_span_context()
         request.state.trace_id = f"{span_context.trace_id:032x}" if span_context.is_valid else secrets.token_hex(16)
+        if request.method in ("POST", "PATCH", "PUT"):
+            body = bytearray()
+            async for chunk in request.stream():
+                if len(body) + len(chunk) > 64_000:
+                    return JSONResponse({"code": "BODY_TOO_LARGE", "detail": "Request exceeds 64 KB", "status": 413}, status_code=413)
+                body.extend(chunk)
+            request._body = bytes(body)
         response = await call_next(request)
         response.headers["X-Trace-Id"] = request.state.trace_id
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        if settings.env == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
         return response
 
     @app.exception_handler(Problem)
@@ -798,5 +810,19 @@ def make_app(settings=None):
     def access_audit(a=Depends(operator)):
         with database.session() as db:
             return {"items": [{k: v for k, v in e.data.items() if k != "grant"} for e in db.scalars(select(Audit))], "nextCursor": None}
+
+    if settings.frontend_dist.is_dir():
+        static_root = settings.frontend_dist.resolve()
+        if (static_root / "assets").is_dir():
+            app.mount("/assets", StaticFiles(directory=static_root / "assets"), name="frontend-assets")
+
+        @app.get("/{path:path}", include_in_schema=False)
+        def frontend(path: str):
+            if path == "api" or path.startswith("api/"):
+                raise Problem(404, "NOT_FOUND", "API route unavailable")
+            target = (static_root / path).resolve()
+            if target.is_relative_to(static_root) and target.is_file():
+                return FileResponse(target)
+            return FileResponse(static_root / "index.html")
 
     return app

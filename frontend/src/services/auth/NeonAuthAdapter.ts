@@ -35,13 +35,22 @@ export class NeonAuthAdapter implements AuthAdapter {
     this.account = await this.request('/me');
     return this.account;
   }
+  async signInForInvitation(email: string, password: string) {
+    const result = await this.configured().signIn.email({ email, password });
+    if (result.error) throw new Error(result.error.message || 'Sign-in failed');
+    this.signedOut = false;
+  }
+  async completePasswordReset(token: string, newPassword: string) {
+    const result = await this.configured().resetPassword({ token, newPassword });
+    if (result.error) throw new Error(result.error.message || 'Password reset failed');
+  }
   async registerInvited(email: string, password: string) {
     const result = await this.configured().signUp.email({ email, password, name: email.split('@')[0] });
     if (result.error) throw new Error(result.error.message || 'Account creation failed');
     this.signedOut = false;
   }
   async resetPassword(email: string) {
-    const result = await this.configured().requestPasswordReset({ email, redirectTo: `${window.location.origin}/sign-in` });
+    const result = await this.configured().requestPasswordReset({ email, redirectTo: `${window.location.origin}/reset-password` });
     if (result.error) throw new Error('Unable to request password reset');
   }
   async signOut() {

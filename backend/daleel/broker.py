@@ -13,11 +13,11 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 from playwright.async_api import async_playwright
-from .config import get_settings
+from .config import BrokerSettings
 from .network import Fetcher, canonical, hostname, resolve_public
 from .browser_cookies import response_cookies
 
-settings = get_settings()
+settings = BrokerSettings()
 connections = {}
 lock = asyncio.Lock()
 

@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+from datetime import datetime, timezone
 from sqlalchemy import select
 from .db import Workspace, Task, Idempotency, resource, resources, put, uid, now
 from .schemas import Limits
@@ -31,8 +32,19 @@ def account_payload(settings, workspace, is_operator=False):
             "workspace": settings_payload(settings, workspace, is_operator)["workspace"]}
 
 
+def active_seconds(data):
+    elapsed = data.get("activeSeconds", 0)
+    if data.get("activeSince"):
+        elapsed += max(0, (datetime.now(timezone.utc) - datetime.fromisoformat(data["activeSince"])).total_seconds())
+    return elapsed
+
+
 def event(db, run, event_type, message, page_url=None):
     data = copy.deepcopy(run.data)
+    if data["status"] != "running" and data.get("activeSince"):
+        data["activeSeconds"] = active_seconds(data)
+        data["activeSince"] = None
+        data["usage"] = {**data["usage"], "elapsedSeconds": data["activeSeconds"]}
     data["sequence"] += 1
     data["updatedAt"] = now()
     run.data = data
@@ -47,6 +59,7 @@ def snapshot(db, run, budget):
         "incomplete": sum(f.data["status"] == "incomplete" for f in findings),
         "duplicate": sum(f.data["status"] == "duplicate" for f in findings)}
     reserved, actual = budget.totals(db, run.workspace_id, run.id)
+    data["usage"]["elapsedSeconds"] = active_seconds(data)
     data["usage"]["aiSpendUsd"] = actual
     data["usage"]["aiReservedUsd"] = reserved
     data.pop("selectedSessionDomain", None)
@@ -136,6 +149,11 @@ async def create_run(app, actor, body, idempotency_key=None, plan_override=None)
                 if prior.fingerprint != fingerprint:
                     raise Problem(409, "IDEMPOTENCY_CONFLICT", "Idempotency key was used with another request")
                 return snapshot(db, need(db, wid, prior.resource_id, "run"), app.budget)
+        existing_runs = resources(db, wid, "run")
+        active = sum(r.data["status"] in ("planning", "queued", "running") for r in existing_runs)
+        daily = sum(r.data["createdAt"][:10] == now()[:10] for r in existing_runs)
+        if active >= app.settings.max_active_runs_per_workspace or daily >= app.settings.max_daily_runs_per_workspace:
+            raise Problem(429, "RUN_ADMISSION_LIMIT", "Workspace concurrent or daily run limit reached", True)
         put(db, wid, "run", run_data, rid=run_id)
         if idempotency_key:
             db.add(Idempotency(workspace_id=wid, key=idempotency_key, operation="create_run",

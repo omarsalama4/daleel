@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useApi } from './index';
 import type {
@@ -124,10 +125,18 @@ export function useRunAction() {
 
 export function useCreateRun() {
   const api = useApi();
+  const admission = useRef<{ fingerprint: string; key: string } | null>(null);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: CreateRun) => api.createRun(payload),
+    mutationFn: (payload: CreateRun) => {
+      const fingerprint = JSON.stringify(payload);
+      if (!admission.current || admission.current.fingerprint !== fingerprint) {
+        admission.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      return api.createRun(payload, admission.current.key);
+    },
     onSuccess: () => {
+      admission.current = null;
       queryClient.invalidateQueries({ queryKey: ['runs'] });
     },
   });

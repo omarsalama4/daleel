@@ -2,9 +2,7 @@
 import argparse
 import asyncio
 import time
-from sqlalchemy import select
 from .app import make_app
-from .db import Workspace, resources
 
 
 async def main():
@@ -16,13 +14,7 @@ async def main():
     app = make_app()
     app.state.database.init()
     if args.recover:
-        with app.state.database.session() as db:
-            workspaces = [w.id for w in db.scalars(select(Workspace))]
-        for wid in workspaces:
-            with app.state.database.session(wid) as db:
-                run_ids = [r.id for r in resources(db, wid, "run") if r.data["status"] in ("queued", "running")]
-            for rid in run_ids:
-                await app.state.runtime.execute(wid, rid)
+        await app.state.runtime.recover()
     elif args.run_id and args.workspace_id:
         deadline = time.monotonic() + 90
         while await app.state.runtime.execute(args.workspace_id, args.run_id) is False:

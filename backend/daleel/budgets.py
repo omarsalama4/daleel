@@ -10,6 +10,8 @@ class Budget:
         self.database = database
 
     def reserve(self, wid, run_id, provider, amount, purpose):
+        if not isinstance(amount, (int, float)) or not math.isfinite(amount) or amount < 0:
+            raise ValueError("Reservation amount must be finite and nonnegative")
         micros = math.ceil(amount * 1_000_000)
         period = datetime.now(timezone.utc).strftime("%Y-%m")
         with self.database.session(wid) as db:
@@ -34,6 +36,8 @@ class Budget:
             return entry.id
 
     def settle(self, wid, entry_id, actual=None, metadata=None, rejected=False):
+        if actual is not None and (not isinstance(actual, (int, float)) or not math.isfinite(actual) or actual < 0):
+            raise ValueError("Actual cost must be finite and nonnegative")
         with self.database.session(wid) as db:
             entry = db.scalar(select(Spend).where(Spend.id == entry_id, Spend.workspace_id == wid).with_for_update())
             if entry.state != "reserved":
