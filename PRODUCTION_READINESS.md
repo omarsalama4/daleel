@@ -23,7 +23,8 @@
 | TypeScript compilation | Passed |
 | Python lint | Passed |
 | Production Vite bundle | Passed |
-| PostgreSQL isolation / checkpoint recovery | Pending actual database |
+| PostgreSQL migrations and RLS policies | Passed in GitHub CI on PostgreSQL 17 |
+| PostgreSQL checkpoint recovery | Pending hosted execution |
 | Container build | Pending Docker engine or cloud build |
 | Real Neon invite, JWT, reset, storage | Pending provider setup |
 | Live AI/search and cost reconciliation | Pending keys and model selection |
@@ -32,7 +33,7 @@
 
 ## External blockers
 
-Browser automation failed to start because its sandbox helper reports setup refresh errors; the user is restoring browser access. Docker Desktop did not expose its Linux engine despite starting its UI and CLI. No secrets were requested in chat or added to Git.
+Browser automation failed to start because its sandbox helper reports setup refresh errors; the user is restoring browser access. Docker Desktop did not expose its Linux engine despite starting its UI and CLI. PostgreSQL migration/RLS checks passed on GitHub’s disposable PostgreSQL 17 service. Frontend CI failed at clean installation on Node 22; the pipeline and image builder are being aligned to the locally verified Node 24 runtime. No secrets were requested in chat or added to Git.
 
 ## Remaining release work
 

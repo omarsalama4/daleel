@@ -27,7 +27,7 @@ jobs:
           python-version: '3.13'
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
       - name: Verify release source
         run: |
           pip install -r backend/requirements.lock && pip install -e 'backend[dev]'
