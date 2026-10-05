@@ -98,6 +98,9 @@ def test_evidence_rejects_fabricated_values():
 def test_budget_admission_is_atomic(client, app):
     run = new_run(client, aiUsageCapUsd=.25)
     wid = client.get("/api/v1/me").json()["workspace"]["id"]
+    with app.state.database.session(wid) as db:
+        stored = resource(db, wid, run["id"], "run", lock=True)
+        stored.data = {**stored.data, "status": "planning"}
     def reserve():
         try:
             return app.state.budget.reserve(wid, run["id"], "test", .20, "test")
@@ -154,6 +157,9 @@ def test_budget_rejects_invalid_cost(client, app, amount):
     wid = client.get("/api/v1/me").json()["workspace"]["id"]
     with pytest.raises(ValueError):
         app.state.budget.reserve(wid, run["id"], "test", amount, "test")
+    with app.state.database.session(wid) as db:
+        stored = resource(db, wid, run["id"], "run", lock=True)
+        stored.data = {**stored.data, "status": "planning"}
     reservation = app.state.budget.reserve(wid, run["id"], "test", .01, "test")
     with pytest.raises(ValueError):
         app.state.budget.settle(wid, reservation, amount)
@@ -312,3 +318,15 @@ def test_run_deletion_waits_for_worker_drain(client, app):
     assert response.status_code == 409
     assert response.json()["code"] == "WORKER_DRAINING"
     assert client.get(f"/api/v1/runs/{run['id']}").status_code == 200
+
+
+@pytest.mark.parametrize("status", ["paused", "cancelled", "needs_attention", "complete", "awaiting_approval"])
+def test_stopped_queries_cannot_admit_model_calls(client, app, status):
+    run = new_run(client, aiUsageCapUsd=.25)
+    wid = client.get("/api/v1/me").json()["workspace"]["id"]
+    with app.state.database.session(wid) as db:
+        stored = resource(db, wid, run["id"], "run", lock=True)
+        stored.data = {**stored.data, "status": status}
+    with pytest.raises(Problem) as error:
+        app.state.budget.reserve(wid, run["id"], "test", .01, "test")
+    assert error.value.code == "RUN_NOT_EXECUTING"

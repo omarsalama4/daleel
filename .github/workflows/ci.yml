@@ -27,6 +27,7 @@ jobs:
       - run: pip install -r backend/requirements.lock && pip install -e 'backend[dev]'
       - run: ruff check backend/daleel backend/migrations
       - run: python -m compileall -q backend/daleel
+      - run: pip install pip-audit==2.10.1 && pip-audit -r backend/requirements.lock --no-deps --disable-pip
       - run: pytest backend/tests -q
   frontend:
     runs-on: ubuntu-latest
@@ -43,6 +44,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+      - run: npm audit --audit-level=high
 
   container:
     needs: [backend, frontend]

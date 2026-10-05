@@ -20,6 +20,8 @@ class Budget:
                 db.connection().exec_driver_sql("BEGIN IMMEDIATE")
             workspace = db.scalar(select(Workspace).where(Workspace.id == wid).with_for_update())
             run = resource(db, wid, run_id, "run", lock=True)
+            if not run or run.data["status"] not in ("planning", "running"):
+                raise Problem(409, "RUN_NOT_EXECUTING", "Model calls require an actively planning or running query")
             entries = list(db.scalars(select(Spend).where(Spend.workspace_id == wid)))
             def charge(entry):
                 return entry.reserved_micros if entry.state in ("reserved", "uncertain") else entry.actual_micros

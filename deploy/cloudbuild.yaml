@@ -6,3 +6,5 @@ substitutions:
   _REGION: europe-west1
   _IMAGE_TAG: local
   _NEON_AUTH_URL: ""
+options:
+  logging: CLOUD_LOGGING_ONLY

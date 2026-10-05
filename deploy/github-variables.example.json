@@ -1,0 +1,14 @@
+{
+  "GCP_PROJECT_ID": "daleel-prod-20261006-c719",
+  "GCP_REGION": "europe-west1",
+  "GCP_WORKLOAD_IDENTITY_PROVIDER": "projects/530191092817/locations/global/workloadIdentityPools/daleel-github/providers/github",
+  "GCP_BUILD_SOURCE_BUCKET": "daleel-prod-20261006-c719-build-source",
+  "NEON_AUTH_URL": "",
+  "RUNTIME_SECRET_VERSION": "",
+  "MIGRATION_SECRET_VERSION": "",
+  "GCP_DEPLOY_SERVICE_ACCOUNT": "daleel-deploy@daleel-prod-20261006-c719.iam.gserviceaccount.com",
+  "GCP_RUNTIME_SERVICE_ACCOUNT": "daleel-runtime@daleel-prod-20261006-c719.iam.gserviceaccount.com",
+  "GCP_MIGRATION_SERVICE_ACCOUNT": "daleel-migration@daleel-prod-20261006-c719.iam.gserviceaccount.com",
+  "GCP_SCHEDULER_SERVICE_ACCOUNT": "daleel-scheduler@daleel-prod-20261006-c719.iam.gserviceaccount.com",
+  "GCP_BUILD_SERVICE_ACCOUNT": "daleel-build@daleel-prod-20261006-c719.iam.gserviceaccount.com"
+}
