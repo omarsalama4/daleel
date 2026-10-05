@@ -1,6 +1,9 @@
 name: Deploy beta
 on:
   workflow_dispatch:
+concurrency:
+  group: daleel-production
+  cancel-in-progress: false
 permissions:
   contents: read
   id-token: write
