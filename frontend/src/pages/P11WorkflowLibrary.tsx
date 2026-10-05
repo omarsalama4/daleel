@@ -66,7 +66,7 @@ export const P11WorkflowLibrary: React.FC = () => {
     if (!deletingWf) return;
     try {
       await api.deleteWorkflow(deletingWf.id);
-      showToast('Workflow removed.', 'success');
+      showToast('Workflow deletion requested.', 'success');
       setDeletingWf(null);
       refetch();
     } catch (err: any) {

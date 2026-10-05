@@ -1232,6 +1232,8 @@ export async function extractGreenhouseOpportunities(boardUrl: string) {
     return rcp;
   }
 
+  async repairRecipe(): Promise<Recipe> { throw new Error('Recipe repairs require the live API.'); }
+
   async performRecipeAction(recipeId: string, action: RecipeAction): Promise<Recipe> {
     const rcp = await this.getRecipe(recipeId);
     if (action.action === 'preview') {

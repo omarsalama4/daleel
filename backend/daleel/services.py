@@ -12,7 +12,7 @@ TERMINAL = {"complete", "partial", "failed", "cancelled"}
 
 def need(db, wid, rid, kind, lock=False):
     item = resource(db, wid, rid, kind, lock)
-    if not item:
+    if not item or item.data.get("deletionRequestedAt"):
         raise Problem(404, "NOT_FOUND", "The requested item is unavailable in this workspace")
     return item
 

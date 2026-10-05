@@ -83,6 +83,7 @@ export interface ApiClient {
   // Recipes
   listRecipes(params?: { cursor?: string; site?: string }): Promise<RecipePage>;
   getRecipe(recipeId: string): Promise<Recipe>;
+  repairRecipe(recipeId: string, patch: { sampleUrl: string; selector: string; changeSummary: string }): Promise<Recipe>;
   performRecipeAction(recipeId: string, action: RecipeAction): Promise<Recipe>;
 
   // Sessions

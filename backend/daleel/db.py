@@ -175,7 +175,7 @@ def resources(db, wid, kind, parent=None):
     query = select(Resource).where(Resource.workspace_id == wid, Resource.kind == kind)
     if parent is not None:
         query = query.where(Resource.parent_id == parent)
-    return list(db.scalars(query.order_by(Resource.created_at.desc(), Resource.id)))
+    return [r for r in db.scalars(query.order_by(Resource.created_at.desc(), Resource.id)) if not r.data.get("deletionRequestedAt")]
 
 
 def put(db, wid, kind, data, parent=None, rid=None):

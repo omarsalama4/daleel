@@ -330,3 +330,128 @@ def test_stopped_queries_cannot_admit_model_calls(client, app, status):
     with pytest.raises(Problem) as error:
         app.state.budget.reserve(wid, run["id"], "test", .01, "test")
     assert error.value.code == "RUN_NOT_EXECUTING"
+
+
+def test_deletion_retry_hides_data_and_revokes_export(client, app, monkeypatch):
+    from daleel.db import put
+    run = new_run(client)
+    wid = client.get("/api/v1/me").json()["workspace"]["id"]
+    with app.state.database.session(wid) as db:
+        finding = put(db, wid, "finding", {"sourceUrl": "https://example.org", "values": {},
+            "status": "complete", "evidence": []}, parent=run["id"])
+        finding_id = finding.id
+    export = client.post(f"/api/v1/runs/{run['id']}/exports", json={"format": "json", "scope": "all"}).json()
+    original_delete = app.state.artifacts.delete
+    def interrupted(*args):
+        raise OSError("private provider diagnostic")
+    monkeypatch.setattr(app.state.artifacts, "delete", interrupted)
+    deleted = client.post(f"/api/v1/runs/{run['id']}/deletion")
+    assert deleted.status_code == 202
+    job = deleted.json()
+    assert job["state"] == "queued" and job["attempts"] == 1
+    assert "private provider diagnostic" not in str(job)
+    assert not {"artifactIds", "recordIds", "claimOwner"} & job.keys()
+    assert client.get(f"/api/v1/runs/{run['id']}").status_code == 404
+    assert client.get(export["downloadUrl"]).status_code == 404
+    assert not client.get("/api/v1/runs").json()["items"]
+    with app.state.database.session(wid) as db:
+        pending = resource(db, wid, job["id"], "deletion")
+        pending.data = {**pending.data, "retryAt": None}
+        assert resource(db, wid, finding_id).data["deletionRequestedAt"]
+    monkeypatch.setattr(app.state.artifacts, "delete", original_delete)
+    asyncio.run(app.state.deletions.recover(wid))
+    assert client.get(f"/api/v1/deletions/{job['id']}").json()["state"] == "complete"
+    with app.state.database.session(wid) as db:
+        assert resource(db, wid, run["id"]) is None
+        assert resource(db, wid, finding_id) is None
+    # Cleanup remains idempotent after success.
+    assert asyncio.run(app.state.deletions.process(wid, job["id"]))["state"] == "complete"
+
+
+def test_failed_export_has_durable_cleanup(client, app, monkeypatch):
+    from daleel.db import resources
+    run = new_run(client)
+    wid = client.get("/api/v1/me").json()["workspace"]["id"]
+    original_write = app.state.artifacts.write
+    def partial_upload(*args):
+        original_write(*args)
+        raise OSError("upload response lost")
+    monkeypatch.setattr(app.state.artifacts, "write", partial_upload)
+    result = client.post(f"/api/v1/runs/{run['id']}/exports", json={"format": "json", "scope": "all"})
+    assert result.status_code == 503 and result.json()["code"] == "EXPORT_FAILED"
+    with app.state.database.session(wid) as db:
+        jobs = resources(db, wid, "deletion")
+        assert len(jobs) == 1
+        export_id = jobs[0].data["artifactIds"][0]
+    assert app.state.artifacts.read(wid, export_id)
+    asyncio.run(app.state.deletions.recover(wid))
+    with pytest.raises(FileNotFoundError):
+        app.state.artifacts.read(wid, export_id)
+
+
+def test_recipe_repair_requires_fresh_approval(client, app, monkeypatch):
+    from daleel.db import put
+    async def public(*args):
+        return ["93.184.216.34"]
+    monkeypatch.setattr("daleel.app.resolve_public", public)
+    wid = client.get("/api/v1/me").json()["workspace"]["id"]
+    with app.state.database.session(wid) as db:
+        recipe = put(db, wid, "recipe", {"version": 1, "site": "example.org", "status": "active",
+            "actions": [{"order": 1, "type": "navigate", "target": "https://example.org/job"},
+                {"order": 2, "type": "extract", "target": "main"}],
+            "validation": {"outcome": "passed"}, "sourceRunId": uid(),
+            "fields": [{"key": "title", "required": True}], "task": "Find AI Engineer"})
+        rid = recipe.id
+    url = f"/api/v1/recipes/{rid}"
+    body = {"sampleUrl": "https://example.org/job", "selector": "article", "changeSummary": "Source layout changed"}
+    changed = client.patch(url, json=body)
+    assert changed.status_code == 200, changed.text
+    data = changed.json()
+    assert data["version"] == 2 and data["status"] == "draft"
+    assert data["versions"][0]["version"] == 1
+    assert client.post(url + "/actions", json={"action": "replay"}).status_code == 409
+    assert client.post(url + "/actions", json={"action": "approve"}).status_code == 409
+    assert client.patch(url, json={**body, "selector": "["}).status_code == 422
+    assert client.patch(url, json={**body, "sampleUrl": "https://other.org/job"}).status_code == 422
+    assert client.post(url + "/actions", json={"action": "preview"}).json()["status"] == "previewed"
+    assert client.post(url + "/actions", json={"action": "approve"}).json()["status"] == "approved"
+    async def missing(self, *args, **kwargs):
+        return {"url": body["sampleUrl"], "html": "<main>AI Engineer</main>", "bytes": 28, "status": 200}
+    monkeypatch.setattr("daleel.app.Fetcher.fetch", missing)
+    replay = client.post(url + "/actions", json={"action": "replay"})
+    assert replay.status_code == 200, replay.text
+    assert replay.json()["status"] == "needs_review"
+    assert replay.json()["validation"]["driftDetected"] is True
+
+
+def test_authenticated_recipe_replay_uses_only_selected_workspace_session(client, app, monkeypatch):
+    import json
+    from cryptography.fernet import Fernet
+    from daleel.db import put, Secret
+    key = Fernet.generate_key()
+    app.state.settings.session_encryption_key = key.decode()
+    wid = client.get("/api/v1/me").json()["workspace"]["id"]
+    cookies = [{"name": "session", "value": "synthetic-test-only", "domain": "example.org", "path": "/"}]
+    with app.state.database.session(wid) as db:
+        session = put(db, wid, "session", {"domain": "example.org", "status": "active", "expiresAt": None})
+        db.add(Secret(id=session.id, workspace_id=wid, ciphertext=Fernet(key).encrypt(json.dumps({"cookies": cookies}).encode()).decode()))
+        recipe = put(db, wid, "recipe", {"version": 1, "site": "example.org", "status": "approved",
+            "actions": [{"order": 1, "type": "navigate", "target": "https://example.org/job"},
+                {"order": 2, "type": "extract", "target": "body"}],
+            "validation": {"outcome": "pending"}, "sourceRunId": uid(),
+            "fields": [{"key": "title", "required": True}], "task": "Find AI Engineer"})
+        rid = recipe.id
+    seen = []
+    async def fetch(self, url, domains, selected):
+        seen.append(selected)
+        return {"url": url, "html": "<html><title>AI Engineer</title><body>AI Engineer opportunity</body></html>", "bytes": 75, "status": 200, "title": "AI Engineer"}
+    monkeypatch.setattr("daleel.app.Fetcher.fetch", fetch)
+    url = f"/api/v1/recipes/{rid}/actions"
+    assert client.post(url, json={"action": "replay"}).json()["status"] == "active"
+    assert seen == [None]
+    replay = client.post(url, json={"action": "replay", "selectedSessionDomain": "example.org"})
+    assert replay.json()["status"] == "active", replay.text
+    assert seen[-1] == cookies
+    wrong = client.post(url, json={"action": "replay", "selectedSessionDomain": "other.org"})
+    assert wrong.json()["status"] == "needs_review"
+    assert len(seen) == 2

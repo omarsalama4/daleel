@@ -625,6 +625,26 @@ paths:
         default:
           $ref: '#/components/responses/Problem'
   /recipes/{recipeId}:
+    patch:
+      tags: [Recipes]
+      operationId: repairRecipe
+      parameters:
+      - $ref: '#/components/parameters/RecipeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipePatch'
+      responses:
+        '200':
+          description: New draft version requiring preview and approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Recipe'
+        default:
+          $ref: '#/components/responses/Problem'
     get:
       tags:
       - Recipes
@@ -2236,6 +2256,21 @@ components:
           type:
           - string
           - 'null'
+    RecipePatch:
+      type: object
+      required: [sampleUrl, selector, changeSummary]
+      properties:
+        sampleUrl:
+          type: string
+          maxLength: 2048
+        selector:
+          type: string
+          minLength: 1
+          maxLength: 500
+        changeSummary:
+          type: string
+          minLength: 1
+          maxLength: 1000
     RecipeAction:
       type: object
       required:
@@ -2248,6 +2283,9 @@ components:
           - replay
           - approve
           - retire
+        selectedSessionDomain:
+          type: string
+          maxLength: 253
     SiteSession:
       type: object
       required:

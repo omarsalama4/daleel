@@ -290,6 +290,10 @@ export class HttpApiClient implements ApiClient {
     return this.request<Recipe>(`/recipes/${recipeId}`);
   }
 
+  async repairRecipe(recipeId: string, patch: { sampleUrl: string; selector: string; changeSummary: string }): Promise<Recipe> {
+    return this.request<Recipe>(`/recipes/${recipeId}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  }
+
   async performRecipeAction(recipeId: string, action: RecipeAction): Promise<Recipe> {
     return this.request<Recipe>(`/recipes/${recipeId}/actions`, {
       method: 'POST',

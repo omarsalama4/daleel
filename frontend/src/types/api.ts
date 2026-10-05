@@ -387,6 +387,7 @@ export interface Recipe {
   codeExportAvailable: boolean;
   codeSnippet?: string;
   linkedWorkflowId?: string;
+  versions?: { version: number; actions: RecipeStep[]; validation: RecipeValidation; savedAt: string; changeSummary: string }[];
 }
 
 export interface RecipePage {
@@ -396,6 +397,7 @@ export interface RecipePage {
 
 export interface RecipeAction {
   action: 'preview' | 'replay' | 'approve' | 'retire';
+  selectedSessionDomain?: string;
 }
 
 export type SessionStatus = 'connecting' | 'active' | 'expired' | 'needs_attention' | 'revoked' | 'unavailable';

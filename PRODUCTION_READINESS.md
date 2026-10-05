@@ -2,6 +2,13 @@
 
 **Status: release blocked; not yet production ready.**
 
+## Latest continuation
+
+- Neon CLI authorization succeeded using an ignored directory with restricted Windows permissions. The available organization is Vercel-managed; Neon rejected creating the dedicated Daleel project there. A directly managed free Neon organization/project is required.
+- Added durable deletion manifests, immediate capability revocation, cleanup retries and recovery of abandoned export uploads.
+- Added recipe repair versions, renewed preview/approval, explicitly selected authenticated replay, actual history comparison and Python script downloads.
+- Local verification: 36 backend checks passed (10 PostgreSQL checks require CI), 11 frontend checks passed, lint/type checks and production build passed. Live-provider and deployed checks remain pending.
+
 ## Completed this pass
 
 - Created GCP project `daleel-prod-20261006-c719` under the approved account; linked the approved billing account.
@@ -46,7 +53,7 @@ Browser automation failed to start because its sandbox helper reports setup refr
 4. Execute live-provider and deployed cloud smoke/recovery checks; fix failures. PostgreSQL policy and container checks already pass in CI.
 5. Configure alerts, billing limits where available and database/object retention; perform and record a backup restore.
 6. Configure and verify domain-specific browser adapters and broker deployment. Current in-memory broker needs one instance and can lose connections during restarts; a durable routing/session design is required before claiming resilient hosted sign-in.
-7. Review deletion failure recovery, artifact orphan cleanup, recipe repair for drift, authenticated recipe replay and extraction quality evaluation before claiming every requested workflow production-ready.
+7. Verify deletion/upload recovery and authenticated recipe replay against hosted services; run extraction quality evaluations. Local failure recovery and recipe repair checks now pass.
 
 The passing tests establish specific local behavior; they do not establish live provider compatibility, deployment reliability or complete production readiness.
 

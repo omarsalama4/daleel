@@ -106,6 +106,13 @@ class RunWorkflow(Input):
 
 class RecipeAction(Input):
     action: Literal["preview", "approve", "replay", "retire"]
+    selectedSessionDomain: str | None = Field(None, max_length=253)
+
+
+class RecipePatch(Input):
+    sampleUrl: str = Field(min_length=1, max_length=2048)
+    selector: str = Field(min_length=1, max_length=500)
+    changeSummary: str = Field(min_length=1, max_length=1000)
 
 
 class ConnectSite(Input):

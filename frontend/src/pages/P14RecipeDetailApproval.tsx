@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useRecipe, useRecipeAction } from '../services/api/queries';
+import { useApi } from '../services/api';
 import { useToast } from '../components/common/Toast';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { AccessibleTabs } from '../components/common/AccessibleTabs';
@@ -26,6 +27,13 @@ export const P14RecipeDetailApproval: React.FC = () => {
 
   const { data: recipe, isLoading: loading, error, refetch } = useRecipe(recipeId!);
   const recipeActionMutation = useRecipeAction();
+  const api = useApi();
+  const [repair, setRepair] = useState(false);
+  const [sampleUrl, setSampleUrl] = useState('');
+  const [selector, setSelector] = useState('');
+  const [changeSummary, setChangeSummary] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [useSession, setUseSession] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
   const updateTab = (tab: string) => {
@@ -39,7 +47,10 @@ export const P14RecipeDetailApproval: React.FC = () => {
   const handleAction = async (action: 'preview' | 'approve' | 'replay' | 'retire') => {
     if (!recipeId) return;
     try {
-      await recipeActionMutation.mutateAsync({ recipeId, action: { action } });
+      const result = await recipeActionMutation.mutateAsync({ recipeId, action: { action, ...(action === 'replay' && useSession ? { selectedSessionDomain: recipe?.site } : {}) } });
+      if (action === 'replay' && result.status !== 'active') {
+        showToast(result.validation?.driftReason || 'Replay did not pass. Review the validation result.', 'error'); return;
+      }
       showToast(
         action === 'replay'
           ? 'Replay validation passed against sample pages. Recipe Active.'
@@ -78,6 +89,30 @@ export const P14RecipeDetailApproval: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {recipe.status !== 'retired' && <section className="p-4 border border-line rounded bg-surface space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <button className="text-sm text-deep-teal" onClick={() => {
+            setRepair(!repair); setSampleUrl(recipe.actions[0]?.target || '');
+            setSelector(recipe.actions.find(a => a.type === 'extract')?.target || 'body');
+          }}>Repair extraction steps</button>
+          <label className="text-xs text-muted-ink flex items-center gap-2">
+            <input type="checkbox" checked={useSession} onChange={e => setUseSession(e.target.checked)} />
+            Use my connected session for {recipe.site} during replay
+          </label>
+        </div>
+        {repair && <form className="space-y-3" onSubmit={async e => {
+          e.preventDefault(); setSaving(true);
+          try { await api.repairRecipe(recipe.id, { sampleUrl, selector, changeSummary });
+            await refetch(); setRepair(false); showToast('Repair saved as a new draft. Preview, approve and replay it before reuse.', 'info'); }
+          catch (failure: any) { showToast(failure?.detail || 'Repair could not be saved.', 'error'); }
+          finally { setSaving(false); }
+        }}>
+          <label className="block text-xs">Sample page URL<input type="url" required value={sampleUrl} onChange={e => setSampleUrl(e.target.value)} className="block w-full border border-line rounded p-2 mt-1" /></label>
+          <label className="block text-xs">Content selector<input required maxLength={500} value={selector} onChange={e => setSelector(e.target.value)} className="block w-full border border-line rounded p-2 mt-1" /></label>
+          <label className="block text-xs">What changed?<input required maxLength={1000} value={changeSummary} onChange={e => setChangeSummary(e.target.value)} className="block w-full border border-line rounded p-2 mt-1" /></label>
+          <button disabled={saving} className="px-3 py-2 bg-deep-teal text-white rounded text-xs">{saving ? 'Saving...' : 'Save repaired draft'}</button>
+        </form>}
+      </section>}
       {/* 1. Header */}
       <div className="p-5 bg-surface rounded border border-line space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-line text-xs">
@@ -91,7 +126,7 @@ export const P14RecipeDetailApproval: React.FC = () => {
 
           {/* Lifecycle actions */}
           <div className="flex items-center gap-2">
-            {recipe.status === 'draft' && (
+            {(recipe.status === 'draft' || recipe.status === 'needs_review') && (
               <button
                 type="button"
                 onClick={() => handleAction('preview')}
@@ -102,7 +137,7 @@ export const P14RecipeDetailApproval: React.FC = () => {
               </button>
             )}
 
-            {(recipe.status === 'draft' || recipe.status === 'previewed') && (
+            {recipe.status === 'previewed' && (
               <button
                 type="button"
                 onClick={() => handleAction('approve')}
@@ -113,7 +148,7 @@ export const P14RecipeDetailApproval: React.FC = () => {
               </button>
             )}
 
-            {(recipe.status === 'approved' || recipe.status === 'needs_review') && (
+            {(recipe.status === 'approved' || recipe.status === 'active') && (
               <button
                 type="button"
                 onClick={() => handleAction('replay')}
@@ -307,12 +342,12 @@ export const P14RecipeDetailApproval: React.FC = () => {
               </button>
 
               <a
-                href={`data:text/javascript;charset=utf-8,${encodeURIComponent(recipe.codeSnippet)}`}
-                download={`${recipe.site.replace(/[^a-z0-9]/gi, '_')}_recipe.js`}
+                href={`data:text/x-python;charset=utf-8,${encodeURIComponent(recipe.codeSnippet)}`}
+                download={`${recipe.site.replace(/[^a-z0-9]/gi, '_')}_recipe.py`}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-line bg-surface hover:bg-subtle-surface text-ink min-target"
               >
                 <Download className="w-3.5 h-3.5 text-muted-ink" />
-                <span>Download .js</span>
+                <span>Download .py</span>
               </a>
             </div>
           </div>
@@ -320,7 +355,7 @@ export const P14RecipeDetailApproval: React.FC = () => {
           <div className="p-3 bg-subtle-surface rounded border border-line text-xs text-muted-ink flex items-start gap-2">
             <Shield className="w-4 h-4 text-deep-teal shrink-0 mt-0.5" />
             <span>
-              Inspected code contains clean DOM automation steps. Zero session credentials or private tokens are embedded.
+              Python Playwright steps contain the source URL and extraction selector. Review the script before exporting; execution requires your own configured browser and access checks.
             </span>
           </div>
 

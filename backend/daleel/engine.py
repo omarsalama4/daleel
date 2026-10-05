@@ -93,6 +93,8 @@ class Runtime:
         cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
         recovered = 0
         for wid in workspaces:
+            if hasattr(self, "deletions"):
+                await self.deletions.recover(wid)
             with self.session(wid) as db:
                 ids = [r.id for r in resources(db, wid, "run") if r.data["status"] in ("planning", "queued", "running")]
             for rid in ids:

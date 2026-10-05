@@ -62,7 +62,7 @@ export const O05DestructiveConfirmModal: React.FC<O05DestructiveConfirmModalProp
         </div>
 
         <div className="p-3 rounded bg-canvas border border-line text-[11px] text-muted-ink">
-          Note: Backup retention windows expire within 30 days. Live indexes and shared grants are purged immediately upon confirmation.
+          Deletion removes live data after cleanup succeeds. Backup and trace retention depend on the configured providers.
         </div>
 
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-line">

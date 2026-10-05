@@ -61,7 +61,7 @@ export const P06RunsList: React.FC = () => {
     if (!deletingRun) return;
     try {
       await api.deleteRun(deletingRun.id);
-      showToast('Run record deleted from workspace.', 'success');
+      showToast('Run hidden from the workspace. Artifact cleanup will retry automatically if needed.', 'success');
       setDeletingRun(null);
       refetch();
     } catch (err: any) {

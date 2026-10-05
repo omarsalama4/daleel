@@ -19,11 +19,11 @@ from sqlalchemy import select, delete
 from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from .config import get_settings
-from .db import Database, Resource, Workspace, Task, Invitation, Share, Audit, Secret, Idempotency, RunLease, uid, now, put, resource, resources
+from .db import Database, Resource, Workspace, Task, Invitation, Share, Audit, Secret, RunLease, uid, now, put, resource, resources
 from .auth import Auth, actor, operator, identity
 from .errors import Problem
 from .schemas import (CreateRun, PlanPatch, RunAction, GateAction, SettingsPatch, FeedbackRequest,
-                      ExportRequest, SaveWorkflow, WorkflowPatch, RunWorkflow, RecipeAction,
+                      ExportRequest, SaveWorkflow, WorkflowPatch, RunWorkflow, RecipeAction, RecipePatch,
                       ConnectSite, SessionPatch, CreateShare, InviteUser, SupportAccess, Limits)
 from .services import need, snapshot, event, transition, paginate, settings_payload, account_payload, create_run, TERMINAL
 from .budgets import Budget
@@ -55,6 +55,9 @@ def make_app(settings=None):
     app.state.auth, app.state.budget = Auth(settings, database), budget
     app.state.models, app.state.runtime, app.state.dispatch = models, runtime, runtime.dispatch
     app.state.artifacts = Artifacts(settings)
+    from .deletions import Deletions
+    app.state.deletions = Deletions(database, app.state.artifacts, runtime.purge_checkpoint, settings)
+    runtime.deletions = app.state.deletions
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins,
                        allow_methods=["GET", "POST", "PATCH", "DELETE"],
                        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "traceparent"],
@@ -344,14 +347,28 @@ def make_app(settings=None):
             rid, token = uid(), secrets.token_urlsafe(32)
             encoded = content.encode("utf-8")
             require_storage(db, a.workspace_id, len(encoded))
-            app.state.artifacts.write(a.workspace_id, rid, encoded, mime)
-            data = {"state": "complete", "createdAt": now(),
+            data = {"state": "uploading", "createdAt": now(),
                     "expiresAt": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
                     "downloadUrl": f"{prefix}/exports/{rid}/download?token={token}",
                     "downloadTokenHash": hashlib.sha256(token.encode()).hexdigest(),
                     "contentType": mime, "extension": extension, "artifactBytes": len(encoded)}
             result = put(db, a.workspace_id, "export", data, parent=run_id, rid=rid)
-            return {k: v for k, v in result.data.items() if k != "downloadTokenHash"}
+        # Persist the artifact identity before external I/O so recovery can remove partial uploads.
+        try:
+            with database.session(a.workspace_id) as db:
+                need(db, a.workspace_id, run_id, "run", lock=True)
+                result = need(db, a.workspace_id, rid, "export", lock=True)
+                app.state.artifacts.write(a.workspace_id, rid, encoded, mime)
+                result.data = {**result.data, "state": "complete"}
+                response = {k: v for k, v in result.data.items() if k != "downloadTokenHash"}
+            return response
+        except Exception:
+            with database.session(a.workspace_id) as db:
+                pending = resource(db, a.workspace_id, rid, "export")
+                cleanup_needed = pending is not None and not pending.data.get("deletionJobId")
+            if cleanup_needed:
+                app.state.deletions.request(a.workspace_id, rid, "export")
+            raise Problem(503, "EXPORT_FAILED", "Export interrupted; cleanup is scheduled. Retry to create a new export.", True) from None
 
     @app.get(prefix + "/exports/{export_id}")
     def get_export(export_id: str, a=Depends(actor)):
@@ -374,30 +391,16 @@ def make_app(settings=None):
             raise Problem(404, "NOT_FOUND", "Export download is unavailable")
         with database.session(wid) as db:
             r = need(db, wid, export_id, "export")
+            if r.data.get("state") != "complete":
+                raise Problem(409, "EXPORT_PENDING", "Export is not ready for download", True)
             if r.data["expiresAt"] < now():
                 raise Problem(410, "EXPORT_EXPIRED", "Create a new export; this link has expired")
             return Response(app.state.artifacts.read(wid, export_id), media_type=r.data["contentType"],
                             headers={"Content-Disposition": f'attachment; filename="daleel-{export_id}.{r.data["extension"]}"'})
 
-    def delete_item(wid, rid, kind):
-        with database.session(wid) as db:
-            item = need(db, wid, rid, kind, lock=True)
-            if kind == "run" and item.data["status"] not in TERMINAL | {"awaiting_approval", "paused"}:
-                raise Problem(409, "RUN_ACTIVE", "Cancel the run before deleting it")
-            children = list(db.scalars(select(Resource).where(Resource.workspace_id == wid, Resource.parent_id == rid)))
-            ids = [rid] + [r.id for r in children]
-            grandchildren = list(db.scalars(select(Resource).where(Resource.workspace_id == wid, Resource.parent_id.in_(ids))))
-            for r in {r.id: r for r in [item] + children + grandchildren}.values():
-                if r.kind == "export":
-                    app.state.artifacts.delete(wid, r.id)
-                db.execute(delete(Share).where(Share.owner_id == wid, Share.resource_id == r.id))
-                db.delete(r)
-            if kind == "run":
-                db.execute(delete(Task).where(Task.workspace_id == wid, Task.run_id == rid))
-                db.execute(delete(Idempotency).where(Idempotency.workspace_id == wid, Idempotency.resource_id == rid))
-            return put(db, wid, "deletion", {"state": "complete", "requestedAt": now(), "completedAt": now(),
-                       "scope": [kind, rid], "backupExpiryAt": None,
-                       "tracePurgeState": "provider_limited" if settings.otlp_endpoint else "not_applicable"}).data
+    async def delete_item(wid, rid, kind):
+        job_id = app.state.deletions.request(wid, rid, kind)
+        return await app.state.deletions.process(wid, job_id)
 
     @app.post(prefix + "/runs/{run_id}/deletion", status_code=202)
     async def delete_run(run_id: str, a=Depends(actor)):
@@ -414,18 +417,17 @@ def make_app(settings=None):
             lease = db.get(RunLease, run_id)
             if lease and lease.expires_at > now():
                 raise Problem(409, "WORKER_DRAINING", "Worker is still stopping; retry deletion after it releases the run", True)
-        await runtime.purge_checkpoint(a.workspace_id, run_id)
-        return delete_item(a.workspace_id, run_id, "run")
+        return await delete_item(a.workspace_id, run_id, "run")
 
     @app.post(prefix + "/runs/{run_id}/findings/{finding_id}/deletion", status_code=202)
-    def delete_finding(run_id: str, finding_id: str, a=Depends(actor)):
+    async def delete_finding(run_id: str, finding_id: str, a=Depends(actor)):
         finding(run_id, finding_id, a)
-        return delete_item(a.workspace_id, finding_id, "finding")
+        return await delete_item(a.workspace_id, finding_id, "finding")
 
     @app.get(prefix + "/deletions/{deletion_id}")
     def deletion(deletion_id: str, a=Depends(actor)):
         with database.session(a.workspace_id) as db:
-            return need(db, a.workspace_id, deletion_id, "deletion").data
+            return app.state.deletions.public(need(db, a.workspace_id, deletion_id, "deletion").data)
 
     @app.get(prefix + "/storage")
     def storage(a=Depends(actor)):
@@ -468,8 +470,8 @@ def make_app(settings=None):
             return w.data
 
     @app.delete(prefix + "/workflows/{workflow_id}", status_code=202)
-    def delete_workflow(workflow_id: str, a=Depends(actor)):
-        return delete_item(a.workspace_id, workflow_id, "workflow")
+    async def delete_workflow(workflow_id: str, a=Depends(actor)):
+        return await delete_item(a.workspace_id, workflow_id, "workflow")
 
     @app.post(prefix + "/workflows/{workflow_id}/duplicate", status_code=201)
     def duplicate_workflow(workflow_id: str, a=Depends(actor)):
@@ -501,6 +503,39 @@ def make_app(settings=None):
         with database.session(a.workspace_id) as db:
             return need(db, a.workspace_id, recipe_id, "recipe").data
 
+    @app.patch(prefix + "/recipes/{recipe_id}")
+    async def repair_recipe(recipe_id: str, body: RecipePatch, a=Depends(actor)):
+        import soupsieve
+        try:
+            soupsieve.compile(body.selector)
+        except Exception:
+            raise Problem(422, "INVALID_SELECTOR", "Enter a valid CSS extraction selector") from None
+        url = canonical(body.sampleUrl)
+        await resolve_public(url, settings)
+        with database.session(a.workspace_id) as db:
+            r = need(db, a.workspace_id, recipe_id, "recipe", lock=True)
+            if r.data["status"] == "retired":
+                raise Problem(409, "RECIPE_RETIRED", "Retired recipes cannot be repaired")
+            if hostname(url) != r.data["site"]:
+                raise Problem(422, "RECIPE_SCOPE", "The sample must stay on the recipe's approved site")
+            prior = copy.deepcopy(r.data)
+            history = prior.get("versions", [])
+            if len(history) >= 20:
+                raise Problem(409, "VERSION_LIMIT", "Recipe version limit reached")
+            code = "# Read-only recipe; apply scope and robots checks before execution.\n" + \
+                "await page.goto(" + repr(url) + ")\n" + \
+                "content = await page.locator(" + repr(body.selector) + ").all_text_contents()\n"
+            data = {**prior, "version": prior["version"] + 1, "status": "draft",
+                "actions": [{"order": 1, "type": "navigate", "target": url, "description": "Open scoped sample"},
+                    {"order": 2, "type": "extract", "target": body.selector, "description": "Read selected source content"}],
+                "codeSnippet": code, "validation": {"samplePages": [url], "outcome": "pending", "driftDetected": False},
+                "versions": history + [{"version": prior["version"], "actions": prior["actions"],
+                    "validation": prior["validation"], "savedAt": now(), "changeSummary": body.changeSummary}],
+                "updatedAt": now()}
+            require_storage(db, a.workspace_id, len(json.dumps(data).encode()))
+            r.data = data
+            return data
+
     @app.post(prefix + "/recipes/{recipe_id}/actions")
     async def recipe_action(recipe_id: str, body: RecipeAction, a=Depends(actor)):
         with database.session(a.workspace_id) as db:
@@ -520,11 +555,25 @@ def make_app(settings=None):
                 raise Problem(409, "APPROVAL_REQUIRED", "Approve the recipe before replay")
             r.data = data
         if body.action == "replay":
+            expected_version, expected_status = data["version"], data["status"]
             fetcher = Fetcher(settings)
             try:
                 # Replay the structured read-only steps; never evaluate exported Python text.
                 url = data["actions"][0]["target"]
-                fetched = await fetcher.fetch(url, [data["site"]])
+                cookies = None
+                if body.selectedSessionDomain:
+                    if body.selectedSessionDomain != data["site"]:
+                        raise Problem(422, "SESSION_SCOPE", "Selected session must match the recipe site")
+                    with database.session(a.workspace_id) as db:
+                        session = next((s for s in resources(db, a.workspace_id, "session")
+                            if s.data["domain"] == body.selectedSessionDomain and s.data["status"] == "active"
+                            and (not s.data.get("expiresAt") or s.data["expiresAt"] > now())), None)
+                        secret = db.get(Secret, session.id) if session else None
+                        if not secret:
+                            raise Problem(409, "SESSION_UNAVAILABLE", "Connect an active authorized session for this site")
+                        state = json.loads(Fernet(settings.session_encryption_key.encode()).decrypt(secret.ciphertext.encode()))
+                        cookies = state["cookies"]
+                fetched = await fetcher.fetch(url, [data["site"]], cookies)
                 page = parse_page(fetched)
                 from .recipes import apply_recipe
                 from .agents import deterministic_extract, verify_result
@@ -546,6 +595,8 @@ def make_app(settings=None):
                 await fetcher.close()
             with database.session(a.workspace_id) as db:
                 r = need(db, a.workspace_id, recipe_id, "recipe", lock=True)
+                if r.data["version"] != expected_version or r.data["status"] != expected_status:
+                    raise Problem(409, "RECIPE_CHANGED", "Recipe changed during replay; review the current version")
                 r.data = data
         return data
 
@@ -783,7 +834,7 @@ def make_app(settings=None):
         # A grant binds to one exact item and purpose; no workspace-wide secret/content access.
         with database.session(body.workspaceId) as db:
             r = resource(db, body.workspaceId, body.itemId)
-            if not r or r.kind not in ("run", "finding", "workflow", "recipe"):
+            if not r or r.data.get("deletionRequestedAt") or r.kind not in ("run", "finding", "workflow", "recipe"):
                 raise Problem(404, "NOT_FOUND", "Support item unavailable")
         with database.session() as db:
             rid, audit_id = uid(), uid()
@@ -807,7 +858,7 @@ def make_app(settings=None):
                 "outcome": "granted", "occurredAt": now(), "operation": "view"}))
         with database.session(grant["workspaceId"]) as db:
             r = resource(db, grant["workspaceId"], item_id)
-            if not r or r.kind not in ("run", "finding", "workflow", "recipe"):
+            if not r or r.data.get("deletionRequestedAt") or r.kind not in ("run", "finding", "workflow", "recipe"):
                 raise Problem(404, "NOT_FOUND", "Support item unavailable")
             return r.data
 
