@@ -18,14 +18,14 @@
 
 | Check | Result |
 |---|---|
-| Backend pytest | 27 passed; 9 PostgreSQL checks skipped locally; original three executed successfully in CI, expanded table coverage pending next CI |
+| Backend pytest | 27 passed; 10 PostgreSQL checks skipped locally; original three executed successfully in CI, expanded table coverage pending next CI |
 | Frontend Vitest | 11 passed |
 | TypeScript compilation | Passed |
 | Python lint | Passed |
 | Production Vite bundle | Passed |
 | PostgreSQL migrations and RLS policies | Passed in GitHub CI on PostgreSQL 17 |
 | PostgreSQL checkpoint recovery | Pending hosted execution |
-| Container build | Pending Docker engine or cloud build |
+| Container build and Chromium smoke | Added to CI; pending execution |
 | Real Neon invite, JWT, reset, storage | Pending provider setup |
 | Live AI/search and cost reconciliation | Pending keys and model selection |
 | Cloud Run deployment smoke / worker restart | Pending deployment |

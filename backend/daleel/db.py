@@ -137,12 +137,15 @@ class Database:
         else:
             with self.engine.connect() as db:
                 unsafe = db.scalar(text("""SELECT rolsuper OR rolbypassrls OR EXISTS (
-                  SELECT 1 FROM pg_tables WHERE tablename='resources' AND tableowner=current_user)
+                  SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename IN
+                  ('resources','tasks','spend','session_secrets','idempotency','run_leases')
+                  AND pg_has_role(current_user,tableowner,'MEMBER'))
                   FROM pg_roles WHERE rolname=current_user"""))
                 if unsafe:
                     raise RuntimeError("Production database connection must be a non-owner NOBYPASSRLS role")
-                if not db.scalar(text("SELECT relrowsecurity FROM pg_class WHERE oid='resources'::regclass")):
-                    raise RuntimeError("Workspace RLS migration is required")
+                for table in ("resources", "tasks", "spend", "session_secrets", "idempotency", "run_leases"):
+                    if not db.scalar(text("SELECT relrowsecurity FROM pg_class WHERE oid=to_regclass(:table)"), {"table": table}):
+                        raise RuntimeError("Workspace RLS migration is required for every tenant table")
 
     @contextmanager
     def session(self, workspace_id=None):

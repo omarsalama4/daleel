@@ -43,3 +43,13 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+
+  container:
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production image with verification-only auth origin
+        run: docker build -f backend/Dockerfile --build-arg VITE_NEON_AUTH_URL=https://auth.invalid -t daleel:verification .
+      - name: Verify image frontend, API boundary and Chromium
+        run: docker run --rm --entrypoint python daleel:verification scripts/verify-image.py

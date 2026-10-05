@@ -87,3 +87,22 @@ def test_every_tenant_table_enforces_policy(engine, table):
         assert "daleel.workspace_id" in policy.with_check
         db.execute(text("SET LOCAL ROLE daleel_app"))
         assert db.scalar(text(f"SELECT count(*) FROM {table}")) == 0
+
+
+
+def test_production_startup_rejects_owner_and_accepts_runtime_role(engine):
+    from daleel.config import Settings
+    from daleel.db import Database
+    settings = Settings(_env_file=None, env="production", database_url=OWNER_URL,
+        auth_mode="jwt", jwks_url="https://auth.invalid/jwks", jwt_issuer="https://auth.invalid",
+        jwt_audience="daleel", frontend_url="https://daleel.invalid", worker_mode="external",
+        storage_mode="s3", s3_bucket="test")
+    database = Database(settings)
+    with pytest.raises(RuntimeError, match="non-owner"):
+        database.init()
+    database.engine.dispose()
+    database.engine = create_engine(OWNER_URL, connect_args={"options": "-c role=daleel_app"}, hide_parameters=True)
+    try:
+        database.init()
+    finally:
+        database.engine.dispose()
