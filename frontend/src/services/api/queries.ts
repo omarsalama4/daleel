@@ -138,9 +138,16 @@ export function useRunFindings(runId: string) {
   const api = useApi();
   return useQuery({
     queryKey: queryKeys.runFindings(runId),
-    queryFn: () => api.listFindings(runId),
+    queryFn: async () => {
+      const first = await api.listFindings(runId);
+      const items = [...first.items];
+      let cursor = first.nextCursor;
+      while (cursor) { const page = await api.listFindings(runId, { cursor }); items.push(...page.items); cursor = page.nextCursor; }
+      return { ...first, items, nextCursor: null };
+    },
     enabled: Boolean(runId),
     staleTime: 10_000,
+    refetchInterval: query => ['complete', 'partial', 'failed', 'cancelled'].includes(query.state.data?.runStatus || '') ? false : 3000,
   });
 }
 
@@ -172,7 +179,11 @@ export function useRunCoverage(runId: string) {
   const api = useApi();
   return useQuery({
     queryKey: queryKeys.runCoverage(runId),
-    queryFn: () => api.getRunCoverage(runId),
+    queryFn: async () => {
+      const first = await api.getRunCoverage(runId); const urls = [...first.urls]; let cursor = first.nextCursor;
+      while (cursor) { const page = await api.getRunCoverage(runId, cursor); urls.push(...page.urls); cursor = page.nextCursor; }
+      return { ...first, urls, nextCursor: null };
+    },
     enabled: Boolean(runId),
     staleTime: 15_000,
   });

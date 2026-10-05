@@ -73,7 +73,7 @@ export const P16Sessions: React.FC = () => {
 
   const handleExpiryChange = async (sessionId: string, mode: 'no_expiry' | 'date') => {
     try {
-      await api.updateSiteSession(sessionId, mode);
+      await api.updateSiteSession(sessionId, mode, mode === 'date' ? new Date(Date.now() + 7 * 86400000).toISOString() : undefined);
       showToast('Session expiry preference updated.', 'success');
       const s = await api.listSessions();
       setSessions(s);
@@ -219,7 +219,6 @@ export const P16Sessions: React.FC = () => {
         onClose={() => setShowConnectModal(false)}
         domain={connectDomain}
         onFinishConnection={async () => {
-          await api.finishSiteSessionConnection(`conn_${Date.now()}`);
           showToast(`Session established for ${connectDomain}.`, 'success');
           const s = await api.listSessions();
           setSessions(s);

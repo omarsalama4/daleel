@@ -96,7 +96,7 @@ export interface Plan {
   relevance: 'broad' | 'balanced' | 'strict';
   limits: Limits;
   aiEstimateUsd?: number;
-  state: 'generating' | 'ready' | 'needs_clarification' | 'invalid' | 'discarded';
+  state: 'generating' | 'approved' | 'ready' | 'needs_clarification' | 'invalid' | 'discarded';
   createdAt: string;
 }
 
@@ -124,6 +124,9 @@ export type RunStatus =
   | 'cancelled';
 
 export interface HumanGate {
+  id?: string;
+  taskId?: string;
+  recipeId?: string;
   blocker: 'login_mfa' | 'captcha_bot_detector' | 'recipe_drift' | 'ai_cap_reached' | 'search_quota' | 'storage_quota';
   title: string;
   reason: string;
@@ -307,7 +310,7 @@ export interface ExportRequest {
 
 export interface ExportJob {
   id: string;
-  state: 'generating' | 'ready' | 'failed';
+  state: 'generating' | 'ready' | 'complete' | 'failed';
   downloadUrl?: string;
   contentSnippet?: string;
   expiresAt: string;
@@ -401,7 +404,7 @@ export interface SiteSession {
   id: string;
   domain: string;
   status: SessionStatus;
-  expiryMode: 'no_expiry' | 'date';
+  expiryMode: 'no_expiry' | 'date' | 'custom';
   expiresAt?: string | null;
   lastValidatedAt: string;
   connectedAt: string;
@@ -411,7 +414,7 @@ export interface SessionConnection {
   id: string;
   domain: string;
   browserUrl: string;
-  state: 'awaiting_user_login' | 'connected' | 'failed';
+  state: 'awaiting_user_login' | 'connected' | 'connecting' | 'ready' | 'failed' | 'cancelled';
   expiresAt: string;
 }
 
@@ -429,7 +432,7 @@ export interface ShareGrant {
   resourceId: string;
   resourceTitle?: string;
   state: 'active' | 'revoked';
-  access: 'view_only';
+  access: 'view_only' | 'read_only';
   createdAt: string;
   revokedAt?: string | null;
 }
@@ -464,20 +467,21 @@ export interface Storage {
 
 export interface DeletionJob {
   id: string;
-  state: 'queued' | 'in_progress' | 'completed' | 'failed';
+  state: 'queued' | 'in_progress' | 'completed' | 'complete' | 'failed';
   requestedAt: string;
   completedAt?: string | null;
-  scope: string;
-  backupExpiryAt: string;
+  scope: string | string[];
+  backupExpiryAt: string | null;
   tracePurgeState: string;
 }
 
 export interface Invitation {
+  invitationUrl?: string;
   id: string;
   email: string;
   status: 'pending' | 'accepted' | 'expired' | 'revoked';
   expiresAt: string;
-  deliveryState: 'delivered' | 'queued' | 'failed';
+  deliveryState: 'delivered' | 'sent' | 'quota_paused' | 'queued' | 'failed';
   createdAt: string;
   note?: string;
 }
@@ -508,7 +512,7 @@ export interface SupportGrant {
   purpose: string;
   operatorEmail: string;
   expiresAt: string;
-  access: 'view_only';
+  access: 'view_only' | 'read_only';
   secretsAccessible: false;
 }
 

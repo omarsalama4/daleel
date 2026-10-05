@@ -4,7 +4,9 @@ Daleel is an invite-only, general-purpose research crawler for a private beta. A
 
 ## Repository status
 
-The `frontend/` application is a **UI prototype with a stateful mock API**. It renders the 22 specified screens and can demonstrate the query, plan, run, results, recipes, sessions, sharing, and operator flows. It does not crawl websites, authenticate with Neon, connect a hosted browser, enforce server-side limits, or persist data. Selecting the HTTP adapter requires a backend that has not been implemented yet. See [frontend validation](FRONTEND_VALIDATION_REPORT.md) and the [backend and AI plan](BACKEND_AI_IMPLEMENTATION_PLAN.md).
+The repository includes a live-connected React frontend and a FastAPI/LangGraph backend: persisted runs and tasks, scoped crawling, evidence-grounded extraction, AI cost admission, saved workflows, reusable reviewed recipes, exports, invitations, sharing and audited operator support. An optional isolated human browser broker supports configured site adapters.
+
+Local development is configured; hosted deployment has not occurred. New Neon/Google Cloud projects, provider credentials and real-domain browser adapter validation are still required. See [backend setup](backend/README.md), [deployment](deploy/README.md) and [implementation status](BACKEND_AI_IMPLEMENTATION_STATUS.md). Previous frontend validation and implementation-plan documents describe the earlier prototype stage.
 
 ## Source documents
 
@@ -16,7 +18,7 @@ The `frontend/` application is a **UI prototype with a stateful mock API**. It r
 
 ## Frontend
 
-From `frontend/`, install dependencies with `npm ci`, then use `npm run dev`, `npm run build`, `npm run lint`, or `npm run test`. The local Node installation must include a working npm launcher. Keep the mock adapter for design review only.
+From `frontend/`, install dependencies with `npm ci`, then use `npm run dev`, `npm run build`, `npm run lint`, or `npm run test`. The local Node installation must include a working npm launcher. Live HTTP is the default. Explicit development demo mode keeps the mock adapter available for design review.
 
-The repository is public by the owner's choice. The hosted product remains an invite-only private beta; the backend auth and data-handling controls are not implemented yet.
+The repository is public by the owner's choice. The hosted product remains an invite-only private beta; server authorization and tenant controls are implemented, but hosted release validation remains pending.
 

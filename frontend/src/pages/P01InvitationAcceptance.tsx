@@ -8,7 +8,7 @@ import { Compass, Shield, AlertTriangle, ArrowRight } from 'lucide-react';
 export const P01InvitationAcceptance: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const api = useApi();
-  const { claimInvitation } = useAuth();
+  const { claimInvitation, registerInvited } = useAuth();
   const navigate = useNavigate();
 
   const [preview, setPreview] = useState<InvitationPreview | null>(null);
@@ -40,10 +40,16 @@ export const P01InvitationAcceptance: React.FC = () => {
     setSubmitting(true);
     setError(null);
     try {
+      if (password) {
+        await registerInvited(preview!.email, password);
+        setError('Verify your email using the Neon message, then return to this invitation and accept while signed in.');
+        setPassword('');
+        return;
+      }
       await claimInvitation(token);
       navigate('/app', { replace: true });
     } catch (err: any) {
-      setError(err?.detail || 'Failed to claim invitation. Please verify credentials.');
+      setError(err?.detail || err?.message || 'Failed to claim invitation. Please verify credentials.');
     } finally {
       setSubmitting(false);
     }
@@ -117,11 +123,10 @@ export const P01InvitationAcceptance: React.FC = () => {
             {/* 2. Authentication Control */}
             <div>
               <label className="block text-xs font-medium text-muted-ink mb-1">
-                Account password
+                New account password (leave blank if already signed in)
               </label>
               <input
                 type="password"
-                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Set secure password for your personal workspace"

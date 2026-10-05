@@ -145,8 +145,8 @@ export const WorkspaceShell: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick prototype environment controls */}
-          <div className="p-2 rounded bg-subtle-surface border border-line space-y-1.5 text-[11px] text-muted-ink">
+          {/* Explicit development demo controls */}
+          {import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === 'true' && <div className="p-2 rounded bg-subtle-surface border border-line space-y-1.5 text-[11px] text-muted-ink">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1">
                 <Server className="w-3 h-3" /> API backend
@@ -176,7 +176,7 @@ export const WorkspaceShell: React.FC = () => {
                 {role === 'owner' ? 'Owner' : 'Operator'}
               </button>
             </div>
-          </div>
+          </div>}
 
           {role === 'operator' && (
             <NavLink

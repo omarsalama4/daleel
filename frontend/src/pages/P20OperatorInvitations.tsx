@@ -11,6 +11,7 @@ export const P20OperatorInvitations: React.FC = () => {
   const { showToast } = useToast();
 
   const { data: invitations = [], isLoading: loading, error, refetch } = useOperatorInvitations();
+  const [invitationUrl, setInvitationUrl] = useState('');
   const [emailInput, setEmailInput] = useState('');
   const [noteInput, setNoteInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -22,6 +23,7 @@ export const P20OperatorInvitations: React.FC = () => {
     try {
       const inv = await api.inviteUser(emailInput.trim(), noteInput.trim() || undefined);
       showToast(`Invitation issued to ${inv.email}. Valid for 7 days.`, 'success');
+      setInvitationUrl(inv.invitationUrl || '');
       setEmailInput('');
       setNoteInput('');
       refetch();
@@ -54,6 +56,7 @@ export const P20OperatorInvitations: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {invitationUrl && <div className="p-3 border border-line rounded text-xs space-y-2"><p>Copy this private invitation link for the recipient:</p><input readOnly value={invitationUrl} className="w-full p-2 border border-line rounded" onFocus={e => e.target.select()} /></div>}
       {/* 1. Header */}
       <div className="p-5 bg-surface rounded border border-line space-y-3">
         <div className="flex items-center gap-2">

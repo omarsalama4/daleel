@@ -16,11 +16,13 @@ const ApiContext = createContext<ApiContextType | undefined>(undefined);
 const mockClientInstance = new MockApiClient();
 
 export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [mode, setMode] = useState<'mock' | 'http'>('mock');
+  const demo = import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === 'true';
+  const [mode, setModeState] = useState<'mock' | 'http'>(demo ? 'mock' : 'http');
+  const setMode = (value: 'mock' | 'http') => { if (demo) setModeState(value); };
   const { getBearerToken } = useAuth();
 
   const httpClient = useMemo(() => {
-    return new HttpApiClient(getBearerToken, '/api/v1');
+    return new HttpApiClient(getBearerToken, import.meta.env.VITE_API_BASE_URL || '/api/v1');
   }, [getBearerToken]);
 
   const api: ApiClient = mode === 'http' ? httpClient : mockClientInstance;

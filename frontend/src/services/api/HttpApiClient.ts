@@ -64,7 +64,8 @@ export class HttpApiClient implements ApiClient {
     }
 
     // W3C trace context
-    headers['traceparent'] = `00-${Math.random().toString(16).substring(2, 34).padEnd(32, '0')}-${Math.random().toString(16).substring(2, 18).padEnd(16, '0')}-01`;
+    const randomHex = (size: number) => Array.from(crypto.getRandomValues(new Uint8Array(size)), b => b.toString(16).padStart(2, '0')).join('');
+    headers['traceparent'] = `00-${randomHex(16)}-${randomHex(8)}-01`;
 
     const res = await fetch(`${this.baseUrl}${path}`, {
       ...options,
@@ -171,8 +172,12 @@ export class HttpApiClient implements ApiClient {
     });
   }
 
+  async resolveGate(runId: string, gateId: string, action: 'connect_site' | 'skip_task' | 'review_recipe'): Promise<Run> {
+    return this.request<Run>(`/runs/${runId}/gates/${gateId}/resolve`, { method: 'POST', body: JSON.stringify({ action }) });
+  }
+
   async getRunActivity(runId: string, cursor?: number): Promise<ActivityPage> {
-    const qs = cursor !== undefined ? `?cursor=${cursor}` : '';
+    const qs = cursor !== undefined ? `?afterSequence=${cursor}` : '';
     return this.request<ActivityPage>(`/runs/${runId}/activity${qs}`);
   }
 

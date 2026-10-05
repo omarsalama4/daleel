@@ -52,7 +52,7 @@ export const AdminShell: React.FC = () => {
         <div className="p-3 border-t border-line bg-canvas/40 space-y-2">
           <button
             onClick={() => {
-              switchRole('owner');
+              if (import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === 'true') switchRole('owner');
               navigate('/app');
             }}
             className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium text-ink bg-surface border border-line rounded hover:bg-subtle-surface"

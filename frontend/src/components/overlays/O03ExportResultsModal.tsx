@@ -25,12 +25,14 @@ export const O03ExportResultsModal: React.FC<O03ExportResultsModalProps> = ({
   const [includeEvidence, setIncludeEvidence] = useState(true);
   const [includeRawArtifacts, setIncludeRawArtifacts] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [error, setError] = useState('');
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsExporting(true);
     setDownloadSuccess(null);
+    setError('');
     try {
       const url = await onExport({
         format,
@@ -39,7 +41,7 @@ export const O03ExportResultsModal: React.FC<O03ExportResultsModalProps> = ({
         includeRawArtifacts,
       });
       setDownloadSuccess(typeof url === 'string' ? url : 'Export ready for download');
-    } finally {
+    } catch (e: any) { setError(e?.detail || 'Export failed'); } finally {
       setIsExporting(false);
     }
   };
@@ -138,14 +140,16 @@ export const O03ExportResultsModal: React.FC<O03ExportResultsModalProps> = ({
           <label className="flex items-center gap-2 text-xs text-ink cursor-pointer">
             <input
               type="checkbox"
+              disabled
               checked={includeRawArtifacts}
               onChange={(e) => setIncludeRawArtifacts(e.target.checked)}
               className="rounded border-line text-deep-teal focus:ring-deep-teal"
             />
-            <span>Include stored HTML snapshot digests where available</span>
+            <span>Raw HTML snapshots are not retained in this beta</span>
           </label>
         </div>
 
+        {error && <p role="alert" className="text-xs text-ink">{error}</p>}
         {downloadSuccess && (
           <div className="p-3 rounded border border-line bg-subtle-surface flex items-center justify-between text-xs">
             <div className="flex items-center gap-2 text-ink">
@@ -153,7 +157,7 @@ export const O03ExportResultsModal: React.FC<O03ExportResultsModalProps> = ({
               <span>Export ready. File generated successfully.</span>
             </div>
             <a
-              href="#"
+              href={downloadSuccess}
               download={`daleel_export_${Date.now()}.${format === 'csv' ? 'csv' : 'json'}`}
               className="text-deep-teal font-medium hover:underline flex items-center gap-1"
             >

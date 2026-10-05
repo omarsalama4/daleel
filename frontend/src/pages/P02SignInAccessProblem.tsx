@@ -4,12 +4,12 @@ import { useAuth } from '../services/auth/AuthContext';
 import { Compass, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 
 export const P02SignInAccessProblem: React.FC = () => {
-  const { signIn } = useAuth();
+  const { signIn, resetPassword } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [email, setEmail] = useState('owner@daleel.ai');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetRequested, setResetRequested] = useState(false);
@@ -26,16 +26,16 @@ export const P02SignInAccessProblem: React.FC = () => {
       await signIn(email, password);
       navigate(from, { replace: true });
     } catch (err: any) {
-      setError(err?.detail || 'Invalid email or password. Please verify your credentials.');
+      setError(err?.detail || err?.message || 'Invalid email or password. Please verify your credentials.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleForgotPassword = (e: React.FormEvent) => {
+  const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     // PRD §12 & Spec P02: Responses do not reveal whether an arbitrary email has an account
-    setResetRequested(true);
+    try { await resetPassword(email); setResetRequested(true); } catch (e: any) { setError(e?.message || 'Could not request password reset'); }
   };
 
   return (

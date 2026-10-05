@@ -1,0 +1,7 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-f', 'backend/Dockerfile', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/daleel/backend:${_IMAGE_TAG}', '.']
+images: ['${_REGION}-docker.pkg.dev/$PROJECT_ID/daleel/backend:${_IMAGE_TAG}']
+substitutions:
+  _REGION: europe-west1
+  _IMAGE_TAG: local

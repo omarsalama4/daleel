@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useRunActivity, useRunAction } from '../services/api/queries';
 import { useApi } from '../services/api';
+import { HttpApiClient } from '../services/api/HttpApiClient';
 import { useToast } from '../components/common/Toast';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { HumanGateBanner } from '../components/common/HumanGateBanner';
@@ -47,6 +48,12 @@ export const P07RunActivity: React.FC = () => {
     } catch (err: any) {
       showToast(err?.detail || `Failed to ${action} run`, 'error');
     }
+  };
+
+  const resolveGate = async (action: 'connect_site' | 'skip_task' | 'review_recipe') => {
+    if (!runId || !run?.activeGate?.id || !(api instanceof HttpApiClient)) return;
+    try { await api.resolveGate(runId, run.activeGate.id, action); refetch(); }
+    catch (e: any) { showToast(e?.detail || 'Could not resolve gate', 'error'); }
   };
 
   const handleSaveWorkflow = async () => {
@@ -151,7 +158,7 @@ export const P07RunActivity: React.FC = () => {
               </button>
             )}
 
-            {(run.status === 'paused' || run.status === 'needs_attention') && (
+            {(run.status === 'paused') && (
               <button
                 type="button"
                 onClick={() => handleAction('resume')}
@@ -240,7 +247,8 @@ export const P07RunActivity: React.FC = () => {
         <HumanGateBanner
           gate={run.activeGate}
           onConnectSite={() => setShowConnectModal(true)}
-          onReviewRecipe={() => navigate('/app/recipes')}
+          onReviewRecipe={() => navigate(run.activeGate?.recipeId ? `/app/recipes/${run.activeGate.recipeId}` : '/app/recipes')}
+          onSkipTask={() => resolveGate('skip_task')}
           onStop={() => handleAction('cancel')}
         />
       )}
@@ -352,7 +360,7 @@ export const P07RunActivity: React.FC = () => {
           domain={run.activeGate?.targetSite || 'target-site.com'}
           onFinishConnection={async () => {
             setShowConnectModal(false);
-            await handleAction('resume');
+            await resolveGate('connect_site');
           }}
         />
       )}

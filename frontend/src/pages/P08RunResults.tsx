@@ -28,7 +28,10 @@ export const P08RunResults: React.FC = () => {
 
   const findings = findingsPage?.items || [];
   const fields = findingsPage?.fieldDefinitions || [];
-  const runStatus = run?.status || 'complete';
+  const summaryFields = fields.filter(f => !['title', 'description'].includes(f.key)).slice(0, 2);
+  const columnA = summaryFields[0] || fields.find(f => f.key === 'description');
+  const columnB = summaryFields[1];
+  const runStatus = run?.status || findingsPage?.runStatus || 'planning';
   const queryText = run?.query || '';
   const loading = loadingFindings || loadingRun;
 
@@ -62,10 +65,7 @@ export const P08RunResults: React.FC = () => {
     if (relevanceFilter && f.relevance.label !== relevanceFilter) return false;
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
-      const title = f.values.title?.value?.toLowerCase() || '';
-      const emp = f.values.employer?.value?.toLowerCase() || '';
-      const loc = f.values.location?.value?.toLowerCase() || '';
-      if (!title.includes(q) && !emp.includes(q) && !loc.includes(q)) return false;
+      if (!Object.values(f.values).some(v => v.value.toLowerCase().includes(q))) return false;
     }
     return true;
   });
@@ -167,7 +167,7 @@ export const P08RunResults: React.FC = () => {
             {incompleteFindings.slice(0, 3).map((f) => (
               <div key={f.id} className="p-2.5 flex items-center justify-between text-xs">
                 <div>
-                  <span className="font-medium text-ink">{f.values.title?.value || 'Untitled Opportunity'}</span>
+                  <span className="font-medium text-ink">{f.values.title?.value || 'Untitled Finding'}</span>
                   <span className="text-muted-ink ml-2">({f.values.employer?.value || 'Unknown source'})</span>
                 </div>
                 <Link
@@ -191,7 +191,7 @@ export const P08RunResults: React.FC = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => updateParam('q', e.target.value)}
-              placeholder="Search in title, employer, or location..."
+              placeholder="Search in all extracted fields..."
               className="w-full pl-9 pr-3 py-1.5 text-sm border border-line rounded bg-surface text-ink placeholder:text-muted-ink/60"
             />
           </div>
@@ -273,8 +273,8 @@ export const P08RunResults: React.FC = () => {
                       />
                     </th>
                     <th className="py-2.5 px-3 font-medium">Finding / Title</th>
-                    <th className="py-2.5 px-3 font-medium">Employer</th>
-                    <th className="py-2.5 px-3 font-medium">Location</th>
+                    <th className="py-2.5 px-3 font-medium">{columnA?.label || 'Details'}</th>
+                    <th className="py-2.5 px-3 font-medium">{columnB?.label || 'Additional field'}</th>
                     <th className="py-2.5 px-3 font-medium">Relevance</th>
                     <th className="py-2.5 px-3 font-medium">Evidence</th>
                     <th className="py-2.5 px-3 font-medium text-right">Actions</th>
@@ -304,7 +304,7 @@ export const P08RunResults: React.FC = () => {
                             to={`/app/runs/${runId}/results/${f.id}`}
                             className="hover:text-deep-teal hover:underline flex items-center gap-1.5"
                           >
-                            <span>{f.values.title?.value || 'Untitled Opportunity'}</span>
+                            <span>{f.values.title?.value || 'Untitled Finding'}</span>
                             {f.status === 'incomplete' && (
                               <span className="text-[11px] font-normal px-1.5 py-0.5 rounded bg-subtle-surface border border-line text-muted-ink">
                                 Incomplete
@@ -318,10 +318,10 @@ export const P08RunResults: React.FC = () => {
                           )}
                         </td>
                         <td className="py-3 px-3 text-muted-ink">
-                          {f.values.employer?.value || <span className="italic text-muted-ink/60">Unknown</span>}
+                          {(columnA ? f.values[columnA.key]?.value : '') || <span className="italic text-muted-ink/60">Unknown</span>}
                         </td>
                         <td className="py-3 px-3 text-muted-ink">
-                          {f.values.location?.value || <span className="italic text-muted-ink/60">Unknown</span>}
+                          {(columnB ? f.values[columnB.key]?.value : '') || <span className="italic text-muted-ink/60">Unknown</span>}
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-1.5">
@@ -370,14 +370,14 @@ export const P08RunResults: React.FC = () => {
                       to={`/app/runs/${runId}/results/${f.id}`}
                       className="text-sm font-semibold text-ink hover:text-deep-teal hover:underline leading-snug"
                     >
-                      {f.values.title?.value || 'Untitled Opportunity'}
+                      {f.values.title?.value || 'Untitled Finding'}
                     </Link>
                     <StatusBadge status={f.status} size="sm" />
                   </div>
 
                   <div className="text-xs text-muted-ink space-y-1">
-                    <div>Employer: <span className="text-ink font-medium">{f.values.employer?.value || 'Unknown'}</span></div>
-                    <div>Location: <span className="text-ink font-medium">{f.values.location?.value || 'Unknown'}</span></div>
+                    <div>{columnA?.label || 'Details'}: <span className="text-ink font-medium">{columnA ? f.values[columnA.key]?.value || 'Unknown' : 'Unknown'}</span></div>
+                    {columnB && <div>{columnB.label}: <span className="text-ink font-medium">{f.values[columnB.key]?.value || 'Unknown'}</span></div>}
                     <div>Relevance: <span className="text-ink font-medium capitalize">{f.relevance.label}</span></div>
                   </div>
 
@@ -406,10 +406,12 @@ export const P08RunResults: React.FC = () => {
           filteredCount={filteredFindings.length}
           selectedCount={selectedIds.length}
           onExport={async (req) => {
-            await api.createRunExport(runId!, {
+            const job = await api.createRunExport(runId!, {
               ...req,
-              findingIds: selectedIds.length > 0 ? selectedIds : undefined,
+              findingIds: req.scope === 'selected' ? selectedIds : req.scope === 'filtered' ? filteredFindings.map(f => f.id) : undefined,
             });
+            if (!job.downloadUrl) throw new Error('Export download is not available yet');
+            return import.meta.env.VITE_API_BASE_URL ? new URL(job.downloadUrl, new URL(import.meta.env.VITE_API_BASE_URL, window.location.origin)).toString() : job.downloadUrl;
           }}
         />
       )}

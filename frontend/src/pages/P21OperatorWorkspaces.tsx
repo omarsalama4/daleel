@@ -22,13 +22,14 @@ export const P21OperatorWorkspaces: React.FC = () => {
   const { data: workspaces = [], isLoading: loading, error: wsError, refetch } = useOperatorWorkspaces();
 
   const [activeGrant, setActiveGrant] = useState<SupportGrant | null>(null);
+  const [supportItemId, setSupportItemId] = useState('');
   const [supportPurpose, setSupportPurpose] = useState('');
   const [supportContent, setSupportContent] = useState<any>(null);
   const [isAuditing, setIsAuditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleRequestSupport = async (workspaceId: string) => {
-    if (!supportPurpose.trim()) {
+    if (supportPurpose.trim().length < 10 || !supportItemId.trim()) {
       setError('A documented non-empty operational reason is required before inspecting user content.');
       return;
     }
@@ -38,13 +39,13 @@ export const P21OperatorWorkspaces: React.FC = () => {
       const grant = await api.requestAuditedSupportAccess({
         workspaceId,
         purpose: supportPurpose.trim(),
-        itemId: 'all_runs',
+        itemId: supportItemId.trim(),
       });
       setActiveGrant(grant);
 
       // Fetch scoped runs
-      const data = await api.getAuditedSupportItem(grant.id, 'all_runs');
-      setSupportContent(Array.isArray(data) ? data : data?.items || []);
+      const data = await api.getAuditedSupportItem(grant.id, supportItemId.trim());
+      setSupportContent(data);
       showToast('Support access granted. Immutable audit trail entry committed.', 'info');
     } catch (err: any) {
       setError(err?.detail || 'Audit write failed. Support view remains closed.');
@@ -189,7 +190,7 @@ export const P21OperatorWorkspaces: React.FC = () => {
                   <span>Mandatory Compliance Gate</span>
                 </div>
                 <p>
-                  You must state an operational ticket number or purpose. Your email and IP address will be written to the compliance log before any tenant run content is displayed.
+                  You must state an operational ticket number or purpose. Your email, exact item and purpose will be written to the compliance log before any the selected item is displayed.
                 </p>
               </div>
 
@@ -200,6 +201,8 @@ export const P21OperatorWorkspaces: React.FC = () => {
               )}
 
               <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-ink">Exact item ID supplied by the workspace owner *</label>
+                <input value={supportItemId} onChange={e => setSupportItemId(e.target.value)} placeholder="Run, finding, workflow or recipe UUID" className="w-full p-2 text-sm border border-line rounded bg-surface text-ink" />
                 <label className="block text-xs font-semibold text-ink">
                   Support ticket ID & business purpose *
                 </label>
@@ -227,7 +230,7 @@ export const P21OperatorWorkspaces: React.FC = () => {
               <div className="p-3 bg-canvas rounded border border-line flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-deep-teal" />
-                  <span>Inspecting private tenant runs (Audited under purpose: "{activeGrant.purpose}")</span>
+                  <span>Inspecting one authorized item (Audited under purpose: "{activeGrant.purpose}")</span>
                 </div>
                 <button
                   type="button"
@@ -243,26 +246,8 @@ export const P21OperatorWorkspaces: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <div className="text-xs font-semibold text-muted-ink uppercase tracking-wider">
-                  Tenant runs ({supportContent?.length || 0}):
-                </div>
-
-                <div className="divide-y divide-line rounded border border-line bg-surface text-xs font-mono-tech">
-                  {(supportContent || []).map((r: any) => (
-                    <div key={r.id} className="p-3 flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <div className="text-ink font-medium font-sans text-xs">{r.query}</div>
-                        <div className="text-muted-ink text-[11px]">ID: {r.id} • Status: {r.status}</div>
-                      </div>
-                      <Link
-                        to={`/app/runs/${r.id}`}
-                        className="px-2.5 py-1 rounded border border-line hover:bg-canvas text-ink text-xs font-sans"
-                      >
-                        Inspect run
-                      </Link>
-                    </div>
-                  ))}
-                </div>
+                <div className="text-xs font-semibold text-muted-ink">Selected item: {activeGrant.itemId}</div>
+                <pre className="p-3 border border-line rounded whitespace-pre-wrap break-words text-xs overflow-auto">{JSON.stringify(supportContent, null, 2)}</pre>
               </div>
             </div>
           )}
