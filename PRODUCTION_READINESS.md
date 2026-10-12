@@ -1,73 +1,46 @@
 # Daleel production readiness — 2026-10-13
 
-**Status: release blocked; not yet production ready.**
+**Status: production release verification in progress; not yet production ready.**
 
-## Provider provisioning — 2026-10-13
+## Verified infrastructure
 
-- Browser access restored. Created a dedicated console-managed **Daleel** organization on the free plan (`org-round-fog-87614545`) and **daleel-production** PostgreSQL 17 project (`bold-fog-96164252`, Frankfurt).
-- Applied schema migrations and checkpoint bootstrap. Enabled the non-owner `daleel_app` runtime login, verified administrative privileges are absent and all six tenant RLS policies are enabled.
-- Enabled Neon Auth, required email verification using OTP and allowed the production frontend origin. Live Ed25519 JWKS retrieval passed. Actual owner sign-in/JWT/reset validation remains pending.
-- Created private `daleel-evidence` storage. Live application write/read/delete and anonymous access denial passed. Added explicit S3 signing-region configuration.
-- Created project-scoped automation credentials. All provider credentials remain in an ignored directory protected by Windows ACLs.
-- Uploaded separate runtime and migration secrets to the approved Secret Manager resources, each pinned to version 1.
-- Configured GitHub beta environment with a main-only deployment policy and all 12 deployment variables. Release execution is pending updated source verification.
-- Adapted the invitation UI to the free Neon provider's verification-code flow. AI/search credentials, live-account tests, broker deployment, monitoring and restore exercise remain outstanding.
+- Google Cloud project `daleel-prod-20261006-c719`, approved owner and billing account, private Artifact Registry and build source bucket. `.gcloudignore` excludes credentials, local data and environment files from uploaded sources.
+- Dedicated free Neon organization and PostgreSQL 17 project `bold-fog-96164252` in Frankfurt. Schema revision `0001`, checkpoint tables and non-owner runtime role are installed.
+- Live Neon isolation passed using two synthetic workspaces: all six tenant RLS policies enabled, cross-workspace reads/updates/deletes hidden, cross-workspace inserts rejected, transaction context reset. Fixtures were deleted.
+- Neon Auth requires email verification using OTP. Live Ed25519 JWKS retrieval passed; frontend supports verification and resend. Real owner sign-in, invitation claim and password reset still need verification.
+- Private Neon evidence bucket: application write/read/delete and anonymous access denial passed. S3 signing region is explicitly configured. Credentials are project/branch scoped and protected locally; separate runtime/migration cloud secrets are pinned to version 1.
+- Point-in-time recovery passed: an isolated branch recovered an earlier synthetic value and schema while main retained its later value. The temporary branch and canary were deleted. Free-plan recovery window is six hours; live data retention remains until manual deletion. No broad backup guarantee is inferred from this exercise.
+- GitHub beta environment accepts main only. Google federation pins repository/owner IDs, exact main ref, deploy workflow and beta subject. No service account JSON keys are used.
+- Cloud Run error alert created for Daleel API, migration, worker and recovery jobs, with the operator's email channel. Delivery has not been tested.
+- Project-only hosting warning budget: **$10 USD/month**, thresholds 50%, 90%, 100%. This alerts; it does not cap spending. Separate AI caps remain $0.25/run and $5/workspace/month.
 
-## Previous continuation
+## Verified source
 
-- Neon CLI authorization succeeded using an ignored directory with restricted Windows permissions. The available organization is Vercel-managed; Neon rejected creating the dedicated Daleel project there. This restriction was resolved on October 13 by creating the dedicated console-managed Daleel organization.
-- Added durable deletion manifests, immediate capability revocation, cleanup retries and recovery of abandoned export uploads.
-- Added recipe repair versions, renewed preview/approval, explicitly selected authenticated replay, actual history comparison and Python script downloads.
-- Local verification: 40 backend checks passed locally; all 50 passed in CI including 10 PostgreSQL checks. All 12 frontend checks, lint/type checks, production build, dependency audits and container/Chromium smoke passed. Live-provider and deployed checks remain pending.
-
-## Completed this pass
-
-- Created GCP project `daleel-prod-20261006-c719` under the approved account; linked the approved billing account.
-- Enabled Run, Build, Artifact Registry, Secret Manager, IAM Credentials and Scheduler APIs; created private registry in europe-west1.
-- Durable dispatch retries and scheduled recovery; stale planning is surfaced as failed.
-- Database transaction fencing for worker ownership, heartbeat cancellation and active execution deadlines.
-- Human pauses excluded from crawl time; workspace admission limits and request-size bounds.
-- AI accounting rejects negative/non-finite usage; cancelled model requests retain uncertain charges.
-- Separate broker settings, existing-account invitation flow, password-reset completion and support-view expiry.
-- Combined frontend/API production image; migration, pinned secret versions, candidate smoke gate and recovery schedule in release workflow.
-- Added real PostgreSQL RLS verification to CI and real HTTP client checks to the frontend suite.
-
-## Observed verification
+[CI run 38317885313](https://github.com/omarsalama4/daleel/actions/runs/38317885313) passed backend, frontend and container jobs at commit `a49b7b7`:
 
 | Check | Result |
 |---|---|
-| Backend pytest | 40 passed locally; all 50 passed in CI including 10 real PostgreSQL checks |
-| Frontend Vitest | 12 passed |
-| Dependency advisories | npm audit and pinned backend pip-audit found no known vulnerabilities |
-| TypeScript compilation | Passed |
-| Python lint | Passed |
-| Production Vite bundle | Passed |
-| PostgreSQL migrations and RLS policies | Passed in GitHub CI on PostgreSQL 17 |
-| PostgreSQL checkpoint recovery | Pending hosted execution |
-| Container build and Chromium smoke | Passed in GitHub CI |
-| Real Neon invite, JWT, reset, storage | Pending provider setup |
-| Live AI/search and cost reconciliation | Pending keys and model selection |
-| Cloud Run deployment smoke / worker restart | Pending deployment |
-| Backup restore | Pending provider configuration and restore exercise |
+| Backend | 51 checks including 10 disposable PostgreSQL checks |
+| Frontend | 15 checks |
+| Python lint, TypeScript and production bundle | Passed |
+| Pinned backend and frontend dependency audits | Passed |
+| Container and Chromium smoke | Passed |
+| Live Neon storage and runtime startup | Passed |
+| Live workspace isolation and recovery | Passed with synthetic fixtures removed |
 
-Separate runtime, migration, scheduler and deployment service accounts were created in the project. Restricted GitHub workload identity is created and its deployment impersonation binding is approved/applied. The user approved deploy/IAM_PLAN.md. Secret, build, bucket, registry, deployment and account-user bindings are applied. Job-specific bindings are prepared in the release workflow; jobs do not exist yet. Empty secret containers exist without values.
+## Release execution
 
-## External blockers
+[Deployment run 38317886520](https://github.com/omarsalama4/daleel/actions/runs/38317886520) initially exposed two permission/configuration errors: GitHub's subject includes immutable IDs, and source submission needs bucket metadata access. Both were corrected with repository-specific federation and a role on the existing private bucket. The retry passed identity authentication and started Cloud Build `2a7dbb29-b0c4-488c-b750-79fd2be66f36`.
 
-Browser automation failed to start because its sandbox helper reports setup refresh errors; the user is restoring browser access. Docker Desktop did not expose its Linux engine despite starting its UI and CLI. PostgreSQL migration/RLS checks passed on GitHub’s disposable PostgreSQL 17 service. Frontend clean installation, production build and tests now pass in CI after aligning to the locally verified Node 24 runtime. CI run 37386497753 (commit 089e445) passed backend, frontend and container jobs, including dependency audit gates, including PostgreSQL 17 policy/runtime-role checks and Chromium smoke. No secrets were requested in chat or added to Git.
+The release runs migration/bootstrap, deploys API/worker/recovery jobs, verifies candidate health and authentication boundaries, installs scheduled recovery, and promotes traffic only after smoke checks.
 
-## Remaining release work
+## Remaining release gates
 
-1. Create/configure Neon database/auth/object storage and separate runtime role; verify actual JWT claims, issuer and audience.
-2. Configure Groq/OpenRouter/search credentials and routes in ignored files/Secret Manager.
-3. Configure GitHub beta environment variables using deploy/github-variables.example.json; project-level IAM is applied and job-specific bindings are automated in release.
-4. Execute live-provider and deployed cloud smoke/recovery checks; fix failures. PostgreSQL policy and container checks already pass in CI.
-5. Configure alerts, billing limits where available and database/object retention; perform and record a backup restore.
-6. Configure and verify domain-specific browser adapters and broker deployment. Current in-memory broker needs one instance and can lose connections during restarts; a durable routing/session design is required before claiming resilient hosted sign-in.
-7. Verify deletion/upload recovery and authenticated recipe replay against hosted services; run extraction quality evaluations. Local failure recovery and recipe repair checks now pass.
+1. Finish deployment and verify hosted API, static UI, worker dispatch, interruption/recovery and storage cleanup.
+2. Create/configure free Groq/OpenRouter and search credentials; verify real provider outputs, grounding, quota failures and cost reservations. Approval to use the specific Google account with these providers is pending after automatic review rejected the initial sign-in.
+3. Verify actual operator invitation, verified-email JWT, sign-in and password reset. Human ownership challenges must be completed by the account owner.
+4. Deploy the separate browser broker with minimal secrets/permissions, expiry and interruption handling; configure and verify domain-specific authenticated selectors. No domain adapters are pre-approved or enabled. The existing broker uses in-memory connections and requires one instance; multi-instance routing remains unimplemented.
+5. Verify monitoring alert delivery and add deployed uptime coverage. Tracing integration supports OTLP/Langfuse but no live exporter is configured yet.
+6. Run hosted extraction-quality and multilingual evaluations, authenticated recipe replay, deletion/export recovery and resource-limit checks.
 
-The passing tests establish specific local behavior; they do not establish live provider compatibility, deployment reliability or complete production readiness.
-
-Latest code verification (commit 1157034): https://github.com/omarsalama4/daleel/actions/runs/37389602977
-
-All three jobs completed successfully: backend, frontend and container. This verifies the committed code and image; real-account sign-in, hosted model/search calls, hosted storage and deployment recovery still require provider setup.
+Detailed provider records and verification reports are in an ignored, ACL-protected local directory. No credentials or personal page content are committed. Passing source checks and individual provider tests do not establish complete production readiness.

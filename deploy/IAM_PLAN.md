@@ -14,6 +14,7 @@ All service account emails below end in `@daleel-prod-20261006-c719.iam.gservice
 | daleel-migration | Secret `daleel-migration-database` | roles/secretmanager.secretAccessor |
 | daleel-scheduler | Cloud Run job `daleel-recovery` only | roles/run.invoker |
 | daleel-build | Artifact Registry repository `daleel` | roles/artifactregistry.writer |
+| daleel-deploy | Artifact Registry repository `daleel` only | roles/artifactregistry.reader |
 | daleel-build | Bucket `daleel-prod-20261006-c719-build-source` | roles/storage.objectViewer |
 | daleel-build | Dedicated project | roles/logging.logWriter |
 | daleel-deploy | Dedicated project | roles/run.admin |
@@ -22,6 +23,7 @@ All service account emails below end in `@daleel-prod-20261006-c719.iam.gservice
 | daleel-deploy | Dedicated project | roles/logging.viewer |
 | daleel-deploy | Dedicated project | roles/serviceusage.serviceUsageConsumer |
 | daleel-deploy | Bucket `daleel-prod-20261006-c719-build-source` | roles/storage.objectAdmin |
+| daleel-deploy | Same dedicated source bucket | roles/storage.legacyBucketReader (bucket metadata; object listing already granted by objectAdmin) |
 | daleel-deploy | Service accounts runtime, migration, scheduler and build only | roles/iam.serviceAccountUser |
 
 ## Resources to create
@@ -33,10 +35,19 @@ All service account emails below end in `@daleel-prod-20261006-c719.iam.gservice
 
 ## Deployment trust and implications
 
-The user already approved GitHub impersonation of `daleel-deploy`. The OIDC provider condition requires repository `omarsalama4/daleel`, ref `refs/heads/main`, workflow `omarsalama4/daleel/.github/workflows/deploy.yml@refs/heads/main`, and subject `repo:omarsalama4/daleel:environment:beta`.
+The user already approved GitHub impersonation of `daleel-deploy`. The OIDC provider condition requires repository `omarsalama4/daleel`, ref `refs/heads/main`, workflow `omarsalama4/daleel/.github/workflows/deploy.yml@refs/heads/main`, and the exact immutable-ID subject documented below.
 
 Deployment is privileged: its Cloud Run admin and account-user access can replace the application and run code as the listed runtime/migration accounts. Those accounts can read their designated secrets. Protect the main branch and beta deployment environment accordingly. Runtime cannot execute the migration job through a project-wide jobs override grant. No service account JSON keys are created.
 
 ## Current approval state
 
-The user approved this complete plan after automatic review requested exact recipient authorization. GitHub impersonation, project/account/bucket/registry bindings and both empty secret containers are applied. No secret values are configured. Worker execution and recovery invocation bindings are applied by the release workflow only when their corresponding jobs exist.
+The user approved this complete plan after automatic review requested exact recipient authorization. GitHub impersonation, project/account/bucket/registry bindings and both secret containers are applied. Separate runtime and migration values are configured as pinned version 1. Worker execution and recovery invocation bindings are applied by the release workflow only when their corresponding jobs exist.
+
+
+## Verified GitHub subject format — 2026-10-13
+
+GitHub emitted `repo:omarsalama4@129695169/daleel@1406398630:environment:beta` for the approved workflow. The provider now matches that exact subject, repository ID `1406398630` and owner ID `129695169`, plus the existing repository, main ref and exact deploy workflow. This corrects the subject-format mismatch without expanding access. Diagnostic logs contain only public identity claims, never bearer tokens.
+
+## Verified source bucket requirement — 2026-10-13
+
+Cloud Build submission also checks bucket metadata. The deployment account now has `roles/storage.legacyBucketReader` on the same private source bucket. This adds bucket inspection; its object listing/access was already covered by `roles/storage.objectAdmin`. No project-wide storage role was added.

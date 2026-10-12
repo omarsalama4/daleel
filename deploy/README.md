@@ -1,6 +1,6 @@
 # Daleel hosted beta deployment
 
-Google Cloud project `daleel-prod-20261006-c719` is created under the approved account, linked to My Billing Account 4, with required APIs enabled and a private `daleel` container registry in `europe-west1`. No application is deployed. Neon, Groq/OpenRouter and search configuration remain required. Local development runs without cloud credentials; without model keys extraction uses a clearly labelled deterministic fallback, and without search keys the user must supply seed URLs.
+Google Cloud project `daleel-prod-20261006-c719` is linked to the approved billing account, with a private registry in `europe-west1`. Neon database, verified-email Auth, private object storage and pinned Secret Manager versions are provisioned. GitHub's restricted deployment identity is working; the first release is in progress. Model/search credentials, live account verification and the hosted browser broker remain release gates. See [PRODUCTION_READINESS.md](../PRODUCTION_READINESS.md) for observed evidence.
 
 ## Accounts and projects
 

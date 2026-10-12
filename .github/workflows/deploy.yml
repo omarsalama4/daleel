@@ -73,6 +73,7 @@ jobs:
         run: |
           gcloud builds submit --project="$PROJECT" --service-account="projects/$PROJECT/serviceAccounts/$BUILD_ACCOUNT" --gcs-source-staging-dir="gs://$SOURCE_BUCKET/source" --config=deploy/cloudbuild.yaml --substitutions="_REGION=$REGION,_IMAGE_TAG=$GITHUB_SHA,_NEON_AUTH_URL=$NEON_AUTH_URL" .
       - name: Deploy worker and API
+        id: deployment
         env:
           PROJECT: ${{ vars.GCP_PROJECT_ID }}
           REGION: ${{ vars.GCP_REGION }}
@@ -91,16 +92,41 @@ jobs:
           gcloud run jobs add-iam-policy-binding daleel-worker --project="$PROJECT" --region="$REGION" --member="serviceAccount:$RUNTIME_ACCOUNT" --role=roles/run.jobsExecutorWithOverrides
           gcloud run jobs deploy daleel-recovery --project="$PROJECT" --region="$REGION" --image="$IMAGE" --command=python --args=-m,daleel.worker,--recover --tasks=1 --max-retries=0 --task-timeout=10m --service-account="$RUNTIME_ACCOUNT" --set-secrets=/app/.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION
           gcloud run jobs add-iam-policy-binding daleel-recovery --project="$PROJECT" --region="$REGION" --member="serviceAccount:$SCHEDULER_ACCOUNT" --role=roles/run.invoker
-          gcloud run deploy daleel-api --project="$PROJECT" --region="$REGION" --image="$IMAGE" --memory=512Mi --cpu=1 --max-instances=2 --concurrency=20 --service-account="$RUNTIME_ACCOUNT" --set-secrets=/app/.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION --allow-unauthenticated --no-traffic --tag candidate
+          if gcloud run services describe daleel-api --project="$PROJECT" --region="$REGION" >/dev/null 2>&1; then
+            gcloud run deploy daleel-api --project="$PROJECT" --region="$REGION" --image="$IMAGE" --memory=512Mi --cpu=1 --max-instances=2 --concurrency=20 --service-account="$RUNTIME_ACCOUNT" --set-secrets=/app/.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION --no-traffic --tag candidate
+          else
+            # A first revision cannot use --no-traffic. Keep it private until smoke passes.
+            gcloud run deploy daleel-api --project="$PROJECT" --region="$REGION" --image="$IMAGE" --memory=512Mi --cpu=1 --max-instances=2 --concurrency=20 --service-account="$RUNTIME_ACCOUNT" --set-secrets=/app/.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION --no-allow-unauthenticated --tag candidate
+          fi
           CANDIDATE=$(gcloud run services describe daleel-api --project="$PROJECT" --region="$REGION" --format=json | python -c 'import json,sys; print(next(t["url"] for t in json.load(sys.stdin)["status"]["traffic"] if t.get("tag")=="candidate"))')
-          curl --fail --retry 5 --retry-delay 3 "$CANDIDATE/ready"
-          curl --fail "$CANDIDATE/sign-in" | grep -q '<div id="root">'
-          test "$(curl -s -o /dev/null -w '%{http_code}' "$CANDIDATE/api/v1/me")" = 401
+          echo "candidate_url=$CANDIDATE" >> "$GITHUB_OUTPUT"
+      - name: Authenticate candidate smoke
+        id: candidate_auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: id_token
+          id_token_audience: ${{ steps.deployment.outputs.candidate_url }}
+          create_credentials_file: false
+      - name: Verify candidate and publish
+        env:
+          PROJECT: ${{ vars.GCP_PROJECT_ID }}
+          REGION: ${{ vars.GCP_REGION }}
+          SCHEDULER_ACCOUNT: ${{ vars.GCP_SCHEDULER_SERVICE_ACCOUNT }}
+          CANDIDATE: ${{ steps.deployment.outputs.candidate_url }}
+          CANDIDATE_TOKEN: ${{ steps.candidate_auth.outputs.id_token }}
+        run: |
+          curl --fail --retry 5 --retry-delay 3 -H "Authorization: Bearer $CANDIDATE_TOKEN" "$CANDIDATE/ready"
+          curl --fail -H "Authorization: Bearer $CANDIDATE_TOKEN" "$CANDIDATE/sign-in" | grep -q '<div id="root">'
+          # A cloud invocation token must not grant a Daleel application session.
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $CANDIDATE_TOKEN" "$CANDIDATE/api/v1/me")" = 401
           JOB_URI="https://run.googleapis.com/v2/projects/$PROJECT/locations/$REGION/jobs/daleel-recovery:run"
           if gcloud scheduler jobs describe daleel-recovery --project="$PROJECT" --location="$REGION" >/dev/null 2>&1; then
             gcloud scheduler jobs update http daleel-recovery --project="$PROJECT" --location="$REGION" --schedule='*/5 * * * *' --uri="$JOB_URI" --http-method=POST --oauth-service-account-email="$SCHEDULER_ACCOUNT"
           else
             gcloud scheduler jobs create http daleel-recovery --project="$PROJECT" --location="$REGION" --schedule='*/5 * * * *' --uri="$JOB_URI" --http-method=POST --oauth-service-account-email="$SCHEDULER_ACCOUNT"
           fi
+          gcloud run services add-iam-policy-binding daleel-api --project="$PROJECT" --region="$REGION" --member=allUsers --role=roles/run.invoker
           REVISION=$(gcloud run services describe daleel-api --project="$PROJECT" --region="$REGION" --format='value(status.latestCreatedRevisionName)')
           gcloud run services update-traffic daleel-api --project="$PROJECT" --region="$REGION" --to-revisions="$REVISION=100"
