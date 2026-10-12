@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     storage_root: Path = Path("data/artifacts")
     s3_endpoint: str = ""
     s3_bucket: str = ""
+    s3_region: str = "us-east-1"
     s3_access_key: str = ""
     s3_secret_key: str = ""
     otlp_endpoint: str = ""

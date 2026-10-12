@@ -492,3 +492,13 @@ def test_recovery_removes_abandoned_upload_after_process_crash(client, app):
         assert resource(db, wid, export_id) is None
     with pytest.raises(FileNotFoundError):
         app.state.artifacts.read(wid, export_id)
+
+
+def test_s3_client_uses_configured_signing_region(app, monkeypatch):
+    from daleel.storage import Artifacts
+    calls = []
+    monkeypatch.setattr("daleel.storage.boto3.client", lambda *args, **kwargs: calls.append(kwargs) or object())
+    app.state.settings.storage_mode = "s3"
+    app.state.settings.s3_region = "eu-central-1"
+    Artifacts(app.state.settings)
+    assert calls[0]["region_name"] == "eu-central-1"

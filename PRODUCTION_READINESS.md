@@ -1,10 +1,21 @@
-# Daleel production readiness — 2026-10-06
+# Daleel production readiness — 2026-10-13
 
 **Status: release blocked; not yet production ready.**
 
-## Latest continuation
+## Provider provisioning — 2026-10-13
 
-- Neon CLI authorization succeeded using an ignored directory with restricted Windows permissions. The available organization is Vercel-managed; Neon rejected creating the dedicated Daleel project there. A directly managed free Neon organization/project is required.
+- Browser access restored. Created a dedicated console-managed **Daleel** organization on the free plan (`org-round-fog-87614545`) and **daleel-production** PostgreSQL 17 project (`bold-fog-96164252`, Frankfurt).
+- Applied schema migrations and checkpoint bootstrap. Enabled the non-owner `daleel_app` runtime login, verified administrative privileges are absent and all six tenant RLS policies are enabled.
+- Enabled Neon Auth, required email verification using OTP and allowed the production frontend origin. Live Ed25519 JWKS retrieval passed. Actual owner sign-in/JWT/reset validation remains pending.
+- Created private `daleel-evidence` storage. Live application write/read/delete and anonymous access denial passed. Added explicit S3 signing-region configuration.
+- Created project-scoped automation credentials. All provider credentials remain in an ignored directory protected by Windows ACLs.
+- Uploaded separate runtime and migration secrets to the approved Secret Manager resources, each pinned to version 1.
+- Configured GitHub beta environment with a main-only deployment policy and all 12 deployment variables. Release execution is pending updated source verification.
+- Adapted the invitation UI to the free Neon provider's verification-code flow. AI/search credentials, live-account tests, broker deployment, monitoring and restore exercise remain outstanding.
+
+## Previous continuation
+
+- Neon CLI authorization succeeded using an ignored directory with restricted Windows permissions. The available organization is Vercel-managed; Neon rejected creating the dedicated Daleel project there. This restriction was resolved on October 13 by creating the dedicated console-managed Daleel organization.
 - Added durable deletion manifests, immediate capability revocation, cleanup retries and recovery of abandoned export uploads.
 - Added recipe repair versions, renewed preview/approval, explicitly selected authenticated replay, actual history comparison and Python script downloads.
 - Local verification: 40 backend checks passed locally; all 50 passed in CI including 10 PostgreSQL checks. All 12 frontend checks, lint/type checks, production build, dependency audits and container/Chromium smoke passed. Live-provider and deployed checks remain pending.

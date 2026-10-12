@@ -18,6 +18,8 @@ interface AuthContextType {
   setAdapterType: (type: 'mock' | 'neon') => void;
   getBearerToken: () => Promise<string | null>;
   registerInvited: (email: string, password: string) => Promise<void>;
+  verifyEmailCode: (email: string, otp: string) => Promise<void>;
+  resendEmailCode: (email: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   completePasswordReset: (token: string, password: string) => Promise<void>;
   signInForInvitation: (email: string, password: string) => Promise<void>;
@@ -129,6 +131,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchRole,
         setAdapterType,
         getBearerToken,
+        verifyEmailCode: async (email, otp) => { if (!demo) await neonAdapter.verifyEmailCode(email, otp); },
+        resendEmailCode: async (email) => { if (!demo) await neonAdapter.resendEmailCode(email); },
         registerInvited: async (email, password) => { if (!demo) await neonAdapter.registerInvited(email, password); },
         signInForInvitation: async (email, password) => { if (!demo) await neonAdapter.signInForInvitation(email, password); },
         completePasswordReset: async (token, password) => { if (!demo) await neonAdapter.completePasswordReset(token, password); },

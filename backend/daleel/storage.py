@@ -10,7 +10,7 @@ class Artifacts:
         self.root.mkdir(parents=True, exist_ok=True)
         self.s3 = None
         if settings.storage_mode == "s3":
-            self.s3 = boto3.client("s3", endpoint_url=settings.s3_endpoint or None,
+            self.s3 = boto3.client("s3", endpoint_url=settings.s3_endpoint or None, region_name=settings.s3_region,
                                    aws_access_key_id=settings.s3_access_key or None,
                                    aws_secret_access_key=settings.s3_secret_key or None)
 

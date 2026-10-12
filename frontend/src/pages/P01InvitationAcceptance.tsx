@@ -8,12 +8,15 @@ import { Compass, Shield, AlertTriangle, ArrowRight } from 'lucide-react';
 export const P01InvitationAcceptance: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const api = useApi();
-  const { claimInvitation, registerInvited, signInForInvitation } = useAuth();
+  const { claimInvitation, registerInvited, signInForInvitation, verifyEmailCode, resendEmailCode } = useAuth();
   const navigate = useNavigate();
 
   const [preview, setPreview] = useState<InvitationPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [password, setPassword] = useState('');
+  const [verification, setVerification] = useState(false);
+  const [code, setCode] = useState('');
+  const [notice, setNotice] = useState('');
   const [existingAccount, setExistingAccount] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,18 +44,24 @@ export const P01InvitationAcceptance: React.FC = () => {
     setSubmitting(true);
     setError(null);
     try {
-      if (password && existingAccount) {
+      if (verification) {
+        await verifyEmailCode(preview!.email, code);
+        setCode('');
+      } else if (password && existingAccount) {
         await signInForInvitation(preview!.email, password);
       } else if (password) {
         await registerInvited(preview!.email, password);
-        setError('Verify your email using the Neon message, then return to this invitation and accept while signed in.');
+        setVerification(true);
+        setNotice('Enter the verification code sent to your invited email address.');
         setPassword('');
         return;
       }
       await claimInvitation(token);
       navigate('/app', { replace: true });
     } catch (err: any) {
-      setError(err?.detail || err?.message || 'Failed to claim invitation. Please verify credentials.');
+      const message = err?.detail || err?.message || 'Failed to claim invitation. Please verify credentials.';
+      setError(message);
+      if (/email.*verif|verif.*email/i.test(message)) { setVerification(true); setPassword(''); }
     } finally {
       setSubmitting(false);
     }
@@ -123,12 +132,26 @@ export const P01InvitationAcceptance: React.FC = () => {
               </div>
             </div>
 
-            <label className="flex items-center gap-2 text-xs text-muted-ink">
+            {notice && <p role="status" className="text-sm text-muted-ink">{notice}</p>}
+            {verification && <div className="space-y-3">
+              <label className="block text-xs font-medium text-muted-ink">Email verification code
+                <input autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required
+                  value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+                  className="block w-full mt-1 p-2 border border-line rounded bg-surface text-ink" />
+              </label>
+              <button type="button" disabled={submitting} className="text-xs text-deep-teal"
+                onClick={async () => { setSubmitting(true); setError(null); try { await resendEmailCode(preview.email); setNotice('A new code was requested. Check your email.'); }
+                  catch (failure) { setError(failure instanceof Error ? failure.message : 'Unable to resend code.'); } finally { setSubmitting(false); } }}>
+                Resend code
+              </button>
+            </div>}
+            {!verification && <label className="flex items-center gap-2 text-xs text-muted-ink">
               <input type="checkbox" checked={existingAccount} onChange={e => setExistingAccount(e.target.checked)} />
               I already have a Neon account for Daleel
-            </label>
+            </label>}
+            {!verification && <button type="button" className="text-xs text-deep-teal" onClick={() => { setVerification(true); setPassword(''); setNotice('Enter the verification code from your email, or request a new one.'); }}>I have an email verification code</button>}
             {/* 2. Authentication Control */}
-            <div>
+            {!verification && <div>
               <label className="block text-xs font-medium text-muted-ink mb-1">
                 {existingAccount ? 'Account password (leave blank if already signed in)' : 'New account password'}
               </label>
@@ -139,7 +162,7 @@ export const P01InvitationAcceptance: React.FC = () => {
                 placeholder="Set secure password for your personal workspace"
                 className="w-full px-3 py-2 text-xs border border-line rounded bg-surface text-ink focus:border-deep-teal"
               />
-            </div>
+            </div>}
 
             {/* 3. Terms of Access Note */}
             <div className="p-3 bg-canvas border border-line rounded text-[11px] text-muted-ink leading-relaxed flex items-start gap-2">
@@ -162,7 +185,7 @@ export const P01InvitationAcceptance: React.FC = () => {
               disabled={submitting}
               className="w-full py-2 px-4 rounded text-xs font-medium text-white bg-deep-teal hover:bg-deep-teal-hover flex items-center justify-center gap-1.5 min-target"
             >
-              <span>{submitting ? 'Setting up workspace...' : 'Accept invitation & open workspace'}</span>
+              <span>{submitting ? 'Setting up workspace...' : verification ? 'Verify email & open workspace' : 'Accept invitation & open workspace'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </form>

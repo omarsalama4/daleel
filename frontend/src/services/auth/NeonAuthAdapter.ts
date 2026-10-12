@@ -44,6 +44,15 @@ export class NeonAuthAdapter implements AuthAdapter {
     const result = await this.configured().resetPassword({ token, newPassword });
     if (result.error) throw new Error(result.error.message || 'Password reset failed');
   }
+  async verifyEmailCode(email: string, otp: string) {
+    const result = await this.configured().emailOtp.verifyEmail({ email, otp });
+    if (result.error) throw new Error(result.error.message || 'Verification code was rejected');
+    this.signedOut = false;
+  }
+  async resendEmailCode(email: string) {
+    const result = await this.configured().emailOtp.sendVerificationOtp({ email, type: 'email-verification' });
+    if (result.error) throw new Error(result.error.message || 'Unable to send verification code');
+  }
   async registerInvited(email: string, password: string) {
     const result = await this.configured().signUp.email({ email, password, name: email.split('@')[0] });
     if (result.error) throw new Error(result.error.message || 'Account creation failed');
