@@ -10,6 +10,7 @@ All service account emails below end in `@daleel-prod-20261006-c719.iam.gservice
 | Identity | Resource | Role |
 |---|---|---|
 | daleel-runtime | Secret `daleel-runtime-env` | roles/secretmanager.secretAccessor |
+| daleel-runtime | Dedicated project | roles/telemetry.tracesWriter; roles/serviceusage.serviceUsageConsumer |
 | daleel-runtime | Cloud Run job `daleel-worker` only | roles/run.jobsExecutorWithOverrides |
 | daleel-migration | Secret `daleel-migration-database` | roles/secretmanager.secretAccessor |
 | daleel-scheduler | Cloud Run job `daleel-recovery` only | roles/run.invoker |
@@ -51,3 +52,7 @@ GitHub emitted `repo:omarsalama4@129695169/daleel@1406398630:environment:beta` f
 ## Verified source bucket requirement — 2026-10-13
 
 Cloud Build submission also checks bucket metadata. The deployment account now has `roles/storage.legacyBucketReader` on the same private source bucket. This adds bucket inspection; its object listing/access was already covered by `roles/storage.objectAdmin`. No project-wide storage role was added.
+
+## Native operational tracing
+
+Runtime can write operational traces and consume the dedicated project API quota. It receives no additional read, secret or database privileges. The exporter uses short-lived workload credentials and removes URLs, query strings, prompts, headers, exception payloads and client trace state at export time. Google integration follows https://docs.cloud.google.com/stackdriver/docs/instrumentation/migrate-to-otlp-endpoints .

@@ -11,6 +11,7 @@
 - Private Neon evidence bucket: application write/read/delete and anonymous access denial passed. S3 signing region is explicitly configured. Credentials are project/branch scoped and protected locally; separate runtime/migration cloud secrets are pinned to version 1.
 - Point-in-time recovery passed: an isolated branch recovered an earlier synthetic value and schema while main retained its later value. The temporary branch and canary were deleted. Free-plan recovery window is six hours; live data retention remains until manual deletion. No broad backup guarantee is inferred from this exercise.
 - GitHub beta environment accepts main only. Google federation pins repository/owner IDs, exact main ref, deploy workflow and beta subject. No service account JSON keys are used.
+- Native OTLP trace export and Cloud Trace readback passed with a synthetic span. Export-time privacy tests cover late-added URLs, prompts, authorization headers, exceptions, resource secrets and client trace state. API and worker activation uses runtime secret version 2 in the next release.
 - Cloud Run error alert created for Daleel API, migration, worker and recovery jobs, with the operator's email channel. Delivery has not been tested.
 - Project-only hosting warning budget: **$10 USD/month**, thresholds 50%, 90%, 100%. This alerts; it does not cap spending. Separate AI caps remain $0.25/run and $5/workspace/month.
 
@@ -30,7 +31,7 @@
 
 ## Release execution
 
-[Deployment run 38317886520](https://github.com/omarsalama4/daleel/actions/runs/38317886520) initially exposed two permission/configuration errors: GitHub's subject includes immutable IDs, and source submission needs bucket metadata access. Both were corrected with repository-specific federation and a role on the existing private bucket. The retry passed identity authentication and started Cloud Build `2a7dbb29-b0c4-488c-b750-79fd2be66f36`.
+[Deployment run 38317886520](https://github.com/omarsalama4/daleel/actions/runs/38317886520) initially exposed two permission/configuration errors: GitHub's subject includes immutable IDs, and source submission needs bucket metadata access. Both were corrected with repository-specific federation and a role on the existing private bucket. The image build passed. Migration and checkpoint bootstrap also passed in Cloud Run. Release `38320098367` then exposed first-service traffic handling and a mounted secret directory hiding `/app`. The workflow now keeps the first usable revision private, authenticates smoke checks with the canonical service audience, and mounts configuration under `/var/secrets/daleel/` using `DALEEL_CONFIG_FILE`. S3 storage no longer requires a local artifact directory. The corrected release is pending execution.
 
 The release runs migration/bootstrap, deploys API/worker/recovery jobs, verifies candidate health and authentication boundaries, installs scheduled recovery, and promotes traffic only after smoke checks.
 
@@ -40,7 +41,9 @@ The release runs migration/bootstrap, deploys API/worker/recovery jobs, verifies
 2. Create/configure free Groq/OpenRouter and search credentials; verify real provider outputs, grounding, quota failures and cost reservations. Approval to use the specific Google account with these providers is pending after automatic review rejected the initial sign-in.
 3. Verify actual operator invitation, verified-email JWT, sign-in and password reset. Human ownership challenges must be completed by the account owner.
 4. Deploy the separate browser broker with minimal secrets/permissions, expiry and interruption handling; configure and verify domain-specific authenticated selectors. No domain adapters are pre-approved or enabled. The existing broker uses in-memory connections and requires one instance; multi-instance routing remains unimplemented.
-5. Verify monitoring alert delivery and add deployed uptime coverage. Tracing integration supports OTLP/Langfuse but no live exporter is configured yet.
+5. Verify monitoring alert delivery and add deployed uptime coverage. Native trace ingestion/readback passed; verify the deployed runtime exporter after version 2 is activated.
 6. Run hosted extraction-quality and multilingual evaluations, authenticated recipe replay, deletion/export recovery and resource-limit checks.
 
 Detailed provider records and verification reports are in an ignored, ACL-protected local directory. No credentials or personal page content are committed. Passing source checks and individual provider tests do not establish complete production readiness.
+
+Latest local regression results: **46 passed, 10 PostgreSQL checks skipped locally**; Python lint and release YAML/Bash syntax passed. The five new checks cover tracing privacy/authentication and mounted-secret/S3 behavior. Disposable PostgreSQL checks continue to run in GitHub CI.

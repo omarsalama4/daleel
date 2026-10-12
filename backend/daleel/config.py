@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 from functools import lru_cache
 from typing import Literal
 from pydantic import model_validator
@@ -43,6 +44,7 @@ class Settings(BaseSettings):
     s3_access_key: str = ""
     s3_secret_key: str = ""
     otlp_endpoint: str = ""
+    google_trace_project: str = ""
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
     langfuse_endpoint: str = "https://cloud.langfuse.com"
@@ -89,7 +91,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings():
-    return Settings()
+    return Settings(_env_file=os.environ.get("DALEEL_CONFIG_FILE", ".env"))
 
 
 class BrokerSettings(BaseSettings):

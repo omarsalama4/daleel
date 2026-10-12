@@ -11,6 +11,9 @@ async def main():
     parser.add_argument("--workspace-id")
     parser.add_argument("--recover", action="store_true")
     args = parser.parse_args()
+    from .config import get_settings
+    from .telemetry import configure
+    configure(get_settings())
     app = make_app()
     app.state.database.init()
     if args.recover:

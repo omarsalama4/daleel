@@ -25,14 +25,16 @@ Then grant `daleel_app` membership to the separate runtime login. Keep the runti
 
 ## Runtime secret
 
-Create Secret Manager secret `daleel-runtime-env` containing environment configuration based on `backend/.env.example`:
+Create Secret Manager secret `daleel-runtime-env` containing environment configuration based on `backend/.env.example`. Mount it outside the application directory at `/var/secrets/daleel/runtime.env` and set `DALEEL_CONFIG_FILE` to that path. Cloud Run mounts a whole directory; mounting `/app/.env` would hide the application files.
+
+Required settings:
 
 - `DALEEL_ENV=production`, `DALEEL_AUTH_MODE=jwt`.
 - Runtime PostgreSQL URL, actual Neon JWT configuration, HTTPS frontend URL, exact CORS origins.
 - `DALEEL_WORKER_MODE=cloud_run` and full worker job resource name.
 - S3 configuration, explicit model IDs and server-side provider keys.
 - Operator email allowlist and a region label.
-- Optional OTLP/Langfuse configuration. Tracing records stages, run IDs and costs; prompts, page content, passwords and session cookies are not exported.
+- `DALEEL_GOOGLE_TRACE_PROJECT` for workload-authenticated native Cloud Trace, or optional OTLP/Langfuse configuration. Tracing records stages, run IDs and costs; prompts, page content, passwords and session cookies are not exported.
 
 Never put secrets in a `VITE_` variable. The only public frontend configuration is the API base URL and Neon Auth URL. Local development token support is excluded from production builds.
 
@@ -93,3 +95,7 @@ Hosted beta remains pending real-account sign-in and invite validation, PostgreS
 Workload identity provider: `projects/530191092817/locations/global/workloadIdentityPools/daleel-github/providers/github`.
 Deployment account: `daleel-deploy@daleel-prod-20261006-c719.iam.gserviceaccount.com`.
 The provider accepts only the main-branch deploy workflow in the GitHub `beta` environment. Remaining permission/resource assignments are listed in [IAM_PLAN.md](IAM_PLAN.md). Before running the release workflow, configure actual GitHub variables, secret versions and provider credentials; provisioning an identity alone does not make the deployment runnable.
+
+## Trace and access-log privacy
+
+Every configured trace exporter applies an export-time allowlist. Traces keep stage, run identifier, provider, HTTP method/status and timing; URLs, prompts, response bodies, headers, exception text, events, links and client trace state are removed. The Cloud Logging `_Default` sink excludes managed request logs for `daleel-api`, because invitation/share/export/reset capabilities can appear in request URLs. Application error logs and audit records remain enabled. Native Cloud Run request metrics remain available.

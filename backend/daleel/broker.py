@@ -7,6 +7,7 @@ import asyncio
 import hmac
 import secrets
 import time
+import os
 from contextlib import asynccontextmanager
 from urllib.parse import urlsplit
 from fastapi import FastAPI, Request, HTTPException
@@ -17,7 +18,7 @@ from .config import BrokerSettings
 from .network import Fetcher, canonical, hostname, resolve_public
 from .browser_cookies import response_cookies
 
-settings = BrokerSettings()
+settings = BrokerSettings(_env_file=os.environ.get("DALEEL_CONFIG_FILE", ".env"))
 connections = {}
 lock = asyncio.Lock()
 
