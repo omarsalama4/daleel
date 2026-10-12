@@ -42,6 +42,22 @@ jobs:
           npm --prefix frontend test
           npm --prefix frontend audit --audit-level=high
           npm --prefix frontend run build
+      - name: Verify deployment identity claims
+        env:
+          WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+        run: |
+          python - <<'PY'
+          import os, json, base64, urllib.request, urllib.parse
+          audience = 'https://iam.googleapis.com/' + os.environ['WIF_PROVIDER']
+          url = os.environ['ACTIONS_ID_TOKEN_REQUEST_URL'] + '&audience=' + urllib.parse.quote(audience, safe='')
+          request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
+          with urllib.request.urlopen(request) as response:
+              token = json.load(response)['value']
+          payload = token.split('.')[1]
+          claims = json.loads(base64.urlsafe_b64decode(payload + '=' * (-len(payload) % 4)))
+          # Public repository identity only; never log a bearer token or full payload.
+          print(json.dumps({key: claims.get(key) for key in ('repository', 'ref', 'workflow_ref', 'sub', 'repository_id', 'repository_owner_id')}))
+          PY
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
