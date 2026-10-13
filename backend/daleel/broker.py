@@ -17,8 +17,10 @@ from playwright.async_api import async_playwright
 from .config import BrokerSettings
 from .network import Fetcher, canonical, hostname, resolve_public
 from .browser_cookies import response_cookies
+from .broker_auth import BrokerIdentity
 
 settings = BrokerSettings(_env_file=os.environ.get("DALEEL_CONFIG_FILE", ".env"))
+identity = BrokerIdentity(settings)
 connections = {}
 lock = asyncio.Lock()
 
@@ -30,8 +32,6 @@ async def dispose(item):
 
 @asynccontextmanager
 async def lifespan(app):
-    if len(settings.session_broker_token) < 32:
-        raise RuntimeError('Browser broker requires a service token of at least 32 characters')
     async with async_playwright() as playwright:
         app.state.playwright = playwright
         async def reap():
@@ -52,9 +52,8 @@ async def lifespan(app):
 app = FastAPI(title='Daleel human browser broker', lifespan=lifespan, docs_url=None, openapi_url=None)
 
 
-def service(request):
-    expected = 'Bearer ' + settings.session_broker_token
-    if not hmac.compare_digest(request.headers.get('authorization', ''), expected):
+async def service(request):
+    if not await asyncio.to_thread(identity.valid, request.headers.get('authorization', '')):
         raise HTTPException(401, 'Broker service authentication required')
 
 
@@ -94,7 +93,7 @@ async def headers(request, call_next):
 
 @app.post('/connections')
 async def create(body: Connection, request: Request):
-    service(request)
+    await service(request)
     url = canonical(body.url)
     site = settings.broker_sites.get(hostname(url))
     if not site or not site.get('authenticatedSelector'):
@@ -156,7 +155,7 @@ async def create(body: Connection, request: Request):
 
 @app.post('/connections/{connection_id}/finish')
 async def finish(connection_id: str, body: Finish, request: Request):
-    service(request)
+    await service(request)
     item = connections.get(connection_id)
     if not item or item['workspace'] != body.workspaceId or item['expires'] < time.time():
         raise HTTPException(410, 'Connection unavailable')

@@ -10,5 +10,7 @@
   "GCP_RUNTIME_SERVICE_ACCOUNT": "daleel-runtime@daleel-prod-20261006-c719.iam.gserviceaccount.com",
   "GCP_MIGRATION_SERVICE_ACCOUNT": "daleel-migration@daleel-prod-20261006-c719.iam.gserviceaccount.com",
   "GCP_SCHEDULER_SERVICE_ACCOUNT": "daleel-scheduler@daleel-prod-20261006-c719.iam.gserviceaccount.com",
-  "GCP_BUILD_SERVICE_ACCOUNT": "daleel-build@daleel-prod-20261006-c719.iam.gserviceaccount.com"
+  "GCP_BUILD_SERVICE_ACCOUNT": "daleel-build@daleel-prod-20261006-c719.iam.gserviceaccount.com",
+  "GCP_BROKER_SERVICE_ACCOUNT": "daleel-broker@daleel-prod-20261006-c719.iam.gserviceaccount.com",
+  "BROKER_SECRET_VERSION": ""
 }

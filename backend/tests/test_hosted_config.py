@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from pathlib import Path
 from daleel.config import get_settings
 from daleel.storage import Artifacts
+import pytest
 
 
 def test_hosted_secret_file_can_live_outside_application_directory(tmp_path, monkeypatch):
@@ -30,3 +31,24 @@ def test_s3_artifacts_do_not_require_local_writable_storage(tmp_path, monkeypatc
                                s3_endpoint="https://storage.invalid", s3_region="eu-central-1",
                                s3_access_key="test", s3_secret_key="test")
     assert Artifacts(settings).s3 is client
+
+
+@pytest.mark.parametrize("setting", ["google_trace_project", "langfuse_public_key", "otlp_endpoint"])
+def test_deletion_reports_provider_retention_for_each_trace_exporter(tmp_path, setting):
+    from daleel.config import Settings
+    from daleel.db import Database, Workspace, put, resource
+    from daleel.deletions import Deletions
+    settings = Settings(env="test", auth_mode="jwt", database_url=f"sqlite:///{tmp_path / 'db.sqlite'}",
+                        storage_root=tmp_path / "artifacts", **{setting: "configured"})
+    db = Database(settings)
+    db.init()
+    with db.session() as session:
+        session.add(Workspace(id="test", subject="test", email="test@example.invalid", data={}))
+        session.flush()
+        run = put(session, "test", "run", {"status": "awaiting_approval"})
+        run_id = run.id
+    deletions = Deletions(db, Artifacts(settings), None, settings)
+    job_id = deletions.request("test", run_id, "run")
+    with db.session("test") as session:
+        assert resource(session, "test", job_id, "deletion").data["tracePurgeState"] == "provider_limited"
+    db.engine.dispose()

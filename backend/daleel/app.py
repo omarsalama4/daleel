@@ -603,9 +603,11 @@ def make_app(settings=None):
     async def broker(method, path, data=None):
         if not settings.session_broker_url or not settings.session_encryption_key:
             raise Problem(503, "SESSION_SERVICE_UNAVAILABLE", "Hosted sign-in requires a configured isolated browser broker")
+        from .broker_auth import authorization
+        header = await authorization(settings)
         async with httpx.AsyncClient(timeout=30, trust_env=False) as client:
             res = await client.request(method, settings.session_broker_url.rstrip("/") + path,
-                                       headers={"Authorization": "Bearer " + settings.session_broker_token}, json=data)
+                                       headers={"Authorization": header}, json=data)
         if res.status_code >= 400:
             raise Problem(409, "SESSION_NOT_VALIDATED", "Complete sign-in in the hosted browser before connecting")
         return res.json()

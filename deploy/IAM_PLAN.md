@@ -56,3 +56,9 @@ Cloud Build submission also checks bucket metadata. The deployment account now h
 ## Native operational tracing
 
 Runtime can write operational traces and consume the dedicated project API quota. It receives no additional read, secret or database privileges. The exporter uses short-lived workload credentials and removes URLs, query strings, prompts, headers, exception payloads and client trace state at export time. Google integration follows https://docs.cloud.google.com/stackdriver/docs/instrumentation/migrate-to-otlp-endpoints .
+
+## Separate hosted browser broker
+
+The broker is deployed as `daleel-broker` in the same region and project, using `daleel-broker@daleel-prod-20261006-c719.iam.gserviceaccount.com`. It reads only `daleel-broker-env`, containing its public URL, expected workload caller, connection limit and reviewed domain adapters. It receives no database, model or storage credentials. `daleel-deploy` receives account-user access on this broker account only, in addition to the previously listed accounts. API runtime obtains a short-lived Google-signed identity token bound to the broker URL; no permanent broker credential is copied into its runtime secret. The public viewer uses expiring capabilities; service operations require a Google-signed token for the exact `daleel-runtime` email, issuer and audience. Managed HTTP access logs are excluded for this service to prevent viewer URL retention. Initial domain-adapter configuration is empty until actual signed-in conditions are verified. Beta runs with one instance and at most two active connections; restarts invalidate live browser viewers and require reconnection.
+
+Automatic review rejected permanent bearer-token sharing with the API. The deployed integration instead uses workload identity with no persistent broker credential. Public broker exposure was explicitly approved by the user.

@@ -1,6 +1,6 @@
 # Daleel production readiness — 2026-10-13
 
-**Status: production release verification in progress; not yet production ready.**
+**Status: hosted application deployed; end-to-end production verification remains incomplete.**
 
 ## Verified infrastructure
 
@@ -47,3 +47,12 @@ The release runs migration/bootstrap, deploys API/worker/recovery jobs, verifies
 Detailed provider records and verification reports are in an ignored, ACL-protected local directory. No credentials or personal page content are committed. Passing source checks and individual provider tests do not establish complete production readiness.
 
 Latest local regression results: **46 passed, 10 PostgreSQL checks skipped locally**; Python lint and release YAML/Bash syntax passed. The five new checks cover tracing privacy/authentication and mounted-secret/S3 behavior. Disposable PostgreSQL checks continue to run in GitHub CI.
+
+## Hosted rollout and crawler verification
+
+- Release [38321342628](https://github.com/omarsalama4/daleel/actions/runs/38321342628) passed. API revision `daleel-api-00002-cif` serves 100% of traffic at https://daleel-api-530191092817.europe-west1.run.app . `/health`, `/ready` and the real sign-in bundle passed; protected account/run endpoints return 401 without credentials and unknown API routes return 404.
+- Recovery is enabled every five minutes. A synthetic queued run was dispatched through the real scheduler/runtime identity. Its HTTPS page failed because the SNI extension used bytes where the installed transport requires text. Corrected this without weakening DNS pinning or certificate validation; transport regression and a real local HTTPS fetch passed. Hosted repeat is pending the corrected image.
+- Isolated browser broker is deployed after explicit public-exposure approval. Live service authentication, unsupported-domain denial and invalid-viewer expiry checks passed. No domain adapters are enabled.
+- Workload identity integration replaces static broker credential sharing, which automatic review rejected. New pinned configuration versions are runtime 3 and broker 2. Real workload-token verification remains pending deployment.
+- Five-minute HTTPS liveness checks, a multi-location failure alert, an error alert, native metrics dashboard and the project-only $10 hosting warning are configured. Routine probes use `/health`; `/ready` is checked during deployment and manually, avoiding continuous database queries that would prevent free Neon compute from suspending. Alert delivery has not been tested.
+- Latest local suite: **53 passed, 10 PostgreSQL checks skipped locally**. New source CI and hosted crawler verification remain pending. Provider sign-in/account challenges, AI/search credentials, domain adapters and authenticated recipe evaluation remain release gates.

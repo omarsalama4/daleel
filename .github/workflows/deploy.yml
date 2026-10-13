@@ -72,6 +72,20 @@ jobs:
           SOURCE_BUCKET: ${{ vars.GCP_BUILD_SOURCE_BUCKET }}
         run: |
           gcloud builds submit --project="$PROJECT" --service-account="projects/$PROJECT/serviceAccounts/$BUILD_ACCOUNT" --gcs-source-staging-dir="gs://$SOURCE_BUCKET/source" --config=deploy/cloudbuild.yaml --substitutions="_REGION=$REGION,_IMAGE_TAG=$GITHUB_SHA,_NEON_AUTH_URL=$NEON_AUTH_URL" .
+      - name: Deploy isolated human browser broker
+        env:
+          PROJECT: ${{ vars.GCP_PROJECT_ID }}
+          REGION: ${{ vars.GCP_REGION }}
+          BROKER_ACCOUNT: ${{ vars.GCP_BROKER_SERVICE_ACCOUNT }}
+          BROKER_SECRET_VERSION: ${{ vars.BROKER_SECRET_VERSION }}
+        run: |
+          test -n "$BROKER_ACCOUNT" && test -n "$BROKER_SECRET_VERSION"
+          test "$BROKER_SECRET_VERSION" != latest
+          IMAGE="$REGION-docker.pkg.dev/$PROJECT/daleel/backend:$GITHUB_SHA"
+          gcloud run deploy daleel-broker --project="$PROJECT" --region="$REGION" --image="$IMAGE" --command=uvicorn --args=daleel.broker:app,--host,0.0.0.0,--port,8080,--no-access-log --memory=2Gi --cpu=1 --max-instances=1 --min-instances=0 --concurrency=10 --timeout=60s --service-account="$BROKER_ACCOUNT" --set-secrets=/var/secrets/daleel/runtime.env=daleel-broker-env:$BROKER_SECRET_VERSION --set-env-vars=DALEEL_CONFIG_FILE=/var/secrets/daleel/runtime.env --allow-unauthenticated
+          BROKER_URL=$(gcloud run services describe daleel-broker --project="$PROJECT" --region="$REGION" --format='value(status.url)')
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$BROKER_URL/viewer/invalid-smoke-capability")" = 410
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' --data '{"id":"00000000-0000-0000-0000-000000000001","workspaceId":"00000000-0000-0000-0000-000000000002","url":"https://example.com/"}' "$BROKER_URL/connections")" = 401
       - name: Deploy worker and API
         id: deployment
         env:

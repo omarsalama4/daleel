@@ -63,7 +63,7 @@ class Fetcher:
         pinned = original.copy_with(host=addresses[0])
         request_headers = {"Host": original.host, **(headers or {}), "Accept-Encoding": "identity"}
         async with self.client.stream(method, pinned, headers=request_headers, content=content,
-                                      extensions={"sni_hostname": original.host.encode()}) as response:
+                                      extensions={"sni_hostname": original.host}) as response:
             # Avoid unbounded decoder allocation before the page cap is checked.
             if response.headers.get("content-encoding", "identity").lower() not in ("", "identity"):
                 raise Problem(415, "UNSUPPORTED_CONTENT", "Source ignored the bounded identity encoding request")

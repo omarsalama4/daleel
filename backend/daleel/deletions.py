@@ -41,7 +41,8 @@ class Deletions:
                 "artifactIds": [r.id for r in items.values() if r.kind == "export"],
                 "checkpointPending": kind == "run", "attempts": 0, "claimUntil": None,
                 "claimOwner": None, "retryAt": None, "backupExpiryAt": None,
-                "tracePurgeState": "provider_limited" if self.settings.otlp_endpoint else "not_applicable"}, rid=job_id)
+                "tracePurgeState": "provider_limited" if any((self.settings.otlp_endpoint,
+                    self.settings.google_trace_project, self.settings.langfuse_public_key)) else "not_applicable"}, rid=job_id)
             # Remove live capabilities immediately; retain a durable cleanup manifest.
             for item in items.values():
                 item.data = {**item.data, "deletionRequestedAt": now(), "deletionJobId": job_id}

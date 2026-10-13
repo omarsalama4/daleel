@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     browser_enabled: bool = False
     session_broker_url: str = ""
     session_broker_token: str = ""
+    session_broker_auth_mode: Literal["token", "google_identity"] = "token"
     session_encryption_key: str = ""
     broker_sites: dict[str, dict] = {}
     broker_public_url: str = "http://127.0.0.1:8001"
@@ -76,7 +77,8 @@ class Settings(BaseSettings):
                 raise ValueError("Production requires an object storage bucket")
             if self.worker_mode == "cloud_run" and not self.cloud_run_job:
                 raise ValueError("Cloud Run worker job must be configured")
-            if self.session_broker_url and (not self.session_broker_url.startswith("https://") or not self.session_broker_token or not self.session_encryption_key):
+            if self.session_broker_url and (not self.session_broker_url.startswith("https://") or
+                    (self.session_broker_auth_mode == "token" and not self.session_broker_token) or not self.session_encryption_key):
                 raise ValueError("Hosted sign-in requires HTTPS, broker authentication, and an encryption key")
         if self.auth_mode == "development" and len(self.dev_token) < 24:
             raise ValueError("Development auth requires a local token of at least 24 characters")
@@ -99,6 +101,8 @@ class BrokerSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="DALEEL_", env_file=".env", extra="ignore")
     env: Literal["development", "test", "production"] = "production"
     session_broker_token: str = ""
+    session_broker_auth_mode: Literal["token", "google_identity"] = "token"
+    broker_caller_email: str = ""
     broker_public_url: str = ""
     broker_sites: dict[str, dict] = {}
     broker_max_connections: int = 2
@@ -108,8 +112,10 @@ class BrokerSettings(BaseSettings):
 
     @model_validator(mode="after")
     def boundary(self):
-        if len(self.session_broker_token) < 32:
+        if self.session_broker_auth_mode == "token" and len(self.session_broker_token) < 32:
             raise ValueError("Broker requires a service token of at least 32 characters")
+        if self.session_broker_auth_mode == "google_identity" and not self.broker_caller_email.endswith(".iam.gserviceaccount.com"):
+            raise ValueError("Workload broker requires an explicit service account caller")
         if self.env == "production" and (not self.broker_public_url.startswith("https://") or self.allow_test_hosts):
             raise ValueError("Production broker requires HTTPS and no test host exceptions")
         return self

@@ -99,3 +99,7 @@ The provider accepts only the main-branch deploy workflow in the GitHub `beta` e
 ## Trace and access-log privacy
 
 Every configured trace exporter applies an export-time allowlist. Traces keep stage, run identifier, provider, HTTP method/status and timing; URLs, prompts, response bodies, headers, exception text, events, links and client trace state are removed. The Cloud Logging `_Default` sink excludes managed request logs for `daleel-api`, because invitation/share/export/reset capabilities can appear in request URLs. Application error logs and audit records remain enabled. Native Cloud Run request metrics remain available.
+
+## Broker workload identity
+
+Cloud Run uses `DALEEL_SESSION_BROKER_AUTH_MODE=google_identity`. API configuration contains only the broker URL and session encryption key. Broker configuration contains that public URL and the exact `DALEEL_BROKER_CALLER_EMAIL` (`daleel-runtime`); it contains no API/database/storage credentials. The broker verifies Google's RS256 signature, issuer, audience, expiry and verified caller email. Local token mode remains available for development. Configure `GCP_BROKER_SERVICE_ACCOUNT` and a pinned numeric `BROKER_SECRET_VERSION` in the beta environment. Public viewer exposure is explicitly approved; bearer-less backend requests remain rejected and unknown capabilities expire with 410.
