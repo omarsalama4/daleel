@@ -6,7 +6,7 @@ Daleel is an invite-only, general-purpose research crawler for a private beta. A
 
 The repository includes a live-connected React frontend and a FastAPI/LangGraph backend: persisted runs and tasks, scoped crawling, evidence-grounded extraction, AI cost admission, saved workflows, reusable reviewed recipes, exports, invitations, sharing and audited operator support. An optional isolated human browser broker supports configured site adapters.
 
-Local development is configured; hosted deployment has not occurred. The dedicated Google Cloud project and scoped deployment identities are provisioned. Neon configuration, provider credentials and real-domain browser adapter validation are still required. See [production readiness](PRODUCTION_READINESS.md) for verified checks and remaining release blockers. See [backend setup](backend/README.md), [deployment](deploy/README.md) and [implementation status](BACKEND_AI_IMPLEMENTATION_STATUS.md). Previous frontend validation and implementation-plan documents describe the earlier prototype stage.
+The private beta is deployed on Cloud Run with Neon and configured AI/search providers. See [production readiness](PRODUCTION_READINESS.md) for verified checks and remaining release blockers, including human account challenges and site-specific adapter validation. See [backend setup](backend/README.md), [deployment](deploy/README.md), [E2E testing](E2E_TESTING.md) and [implementation status](BACKEND_AI_IMPLEMENTATION_STATUS.md). Previous frontend validation and implementation-plan documents describe the earlier prototype stage.
 
 ## Source documents
 
@@ -20,5 +20,5 @@ Local development is configured; hosted deployment has not occurred. The dedicat
 
 From `frontend/`, install dependencies with `npm ci`, then use `npm run dev`, `npm run build`, `npm run lint`, or `npm run test`. The local Node installation must include a working npm launcher. Live HTTP is the default. Explicit development demo mode keeps the mock adapter available for design review.
 
-The repository is public by the owner's choice. The hosted product remains an invite-only private beta; server authorization and tenant controls are implemented, but hosted release validation remains pending.
+The repository is public by the owner's choice. The hosted product remains an invite-only private beta. Browser E2E checks gate deployments; third-party authentication challenges remain human steps.
 

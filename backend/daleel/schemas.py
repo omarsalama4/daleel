@@ -102,6 +102,7 @@ class RunWorkflow(Input):
     mode: Literal["approval", "autonomous"] = "approval"
     limits: Limits | None = None
     aiUsageCapUsd: Decimal = Field(Decimal("0.25"), ge=0, le=Decimal("0.25"), multiple_of=Decimal("0.01"))
+    selectedSessionDomain: str | None = Field(None, max_length=253)
 
 
 class RecipeAction(Input):

@@ -4,7 +4,7 @@ import ipaddress
 import socket
 import time
 from urllib.parse import urlsplit, urlunsplit, urljoin, parse_qsl, urlencode
-from urllib.robotparser import RobotFileParser
+from protego import Protego
 import httpx
 from bs4 import BeautifulSoup
 from .errors import Problem
@@ -80,12 +80,11 @@ class Fetcher:
     async def permitted(self, url):
         origin = f"{urlsplit(url).scheme}://{hostname(url)}"
         if origin not in self.robots:
-            parser = RobotFileParser()
             try:
                 status, _, body = await self.raw(origin + "/robots.txt", 256_000)
                 if status in (401, 403, 429) or status >= 500 or 300 <= status < 400:
                     return False
-                parser.parse(body.decode("utf-8", "replace").splitlines() if status == 200 else [])
+                parser = Protego.parse(body.decode("utf-8", "replace") if status == 200 else "")
             except Problem as exc:
                 if exc.code == "DOWNLOAD_CAP":
                     raise
@@ -93,7 +92,7 @@ class Fetcher:
             except httpx.HTTPError:
                 return False
             self.robots[origin] = parser
-        return self.robots[origin].can_fetch(USER_AGENT, url)
+        return self.robots[origin].can_fetch(url, USER_AGENT)
 
     async def fetch(self, url, allowed_domains, cookies=None, remaining_bytes=None):
         url = canonical(url)

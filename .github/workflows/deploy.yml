@@ -8,7 +8,12 @@ permissions:
   contents: read
   id-token: write
 jobs:
+  browser-verification:
+    uses: ./.github/workflows/e2e.yml
+    permissions:
+      contents: read
   deploy:
+    needs: browser-verification
     runs-on: ubuntu-latest
     services:
       postgres:

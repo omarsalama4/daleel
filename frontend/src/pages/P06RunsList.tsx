@@ -233,7 +233,7 @@ export const P06RunsList: React.FC = () => {
                               <Play className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {['running', 'paused', 'needs_attention'].includes(r.status) && (
+                          {['planning', 'awaiting_approval', 'queued', 'running', 'paused', 'needs_attention'].includes(r.status) && (
                             <button
                               type="button"
                               onClick={() => handleAction(r.id, 'cancel')}

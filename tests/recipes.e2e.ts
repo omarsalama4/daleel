@@ -1,0 +1,31 @@
+import { test } from '@e2e-dev/web';
+import { expect } from 'e2e';
+import { createPlan, finish, snapshot } from './support/research';
+
+test('recipe requires preview and approval, activates on grounded replay and flags a broken selector', async ({ app, screen }) => {
+  const query = `AI Engineer Cairo ${Date.now()}`;
+  const run = await createPlan(app, screen, query, 'http://127.0.0.1/job');
+  await finish(app, screen, run);
+  const s = await snapshot(app);
+  const recipe = s.resources.find((r: any) => r.kind === 'recipe' && r.data.sourceRunId === run.id).data;
+  await app.open(`/app/recipes/${recipe.id}`);
+  await expect(screen.getByRole('button', 'Mark Previewed')).toBeVisible();
+  await expect(screen.getByRole('button', 'Approve Recipe')).toHaveCount(0);
+  await screen.getByRole('button', 'Mark Previewed').tap();
+  await screen.getByRole('button', 'Approve Recipe').tap();
+  await screen.getByRole('button', 'Validate Replay & Activate').tap();
+  await expect(screen.getByRole('button', 'Retire Recipe')).toBeVisible();
+  await screen.getByRole('button', 'Repair extraction steps').tap();
+  await screen.getByLabel('Content selector').fill('.nonexistent-e2e-selector');
+  await screen.getByLabel('What changed?').fill('Deliberate invalid selector to verify drift handling');
+  await screen.getByRole('button', 'Save repaired draft').tap();
+  await screen.getByRole('button', 'Mark Previewed').tap();
+  await screen.getByRole('button', 'Approve Recipe').tap();
+  await screen.getByRole('button', 'Validate Replay & Activate').tap();
+  await expect(screen.getByRole('button', 'Mark Previewed')).toBeVisible();
+  const after = await snapshot(app);
+  const saved = after.resources.find((r: any) => r.kind === 'recipe' && r.data.id === recipe.id).data;
+  expect(saved.status).toBe('needs_review');
+  expect(saved.version).toBe(2);
+  expect(saved.validation.driftDetected).toBe(true);
+});

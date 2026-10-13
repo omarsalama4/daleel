@@ -9,6 +9,11 @@
 .agents
 .codex
 .aws
+.e2e
+.claude
+.cursor
+.mcp.json
+tests
 frontend/dist
 *.docx
 *.png

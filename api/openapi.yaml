@@ -2194,6 +2194,10 @@ components:
       required:
       - mode
       properties:
+        selectedSessionDomain:
+          type: string
+          maxLength: 253
+          description: Optional active authorized site session belonging to this workspace.
         mode:
           $ref: '#/components/schemas/RunMode'
         limits:

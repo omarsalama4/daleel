@@ -170,7 +170,7 @@ export const P07RunActivity: React.FC = () => {
               </button>
             )}
 
-            {['running', 'paused', 'needs_attention'].includes(run.status) && (
+            {['planning', 'awaiting_approval', 'queued', 'running', 'paused', 'needs_attention'].includes(run.status) && (
               <button
                 type="button"
                 onClick={() => handleAction('cancel')}

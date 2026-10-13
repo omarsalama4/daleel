@@ -5,6 +5,24 @@ from daleel.network import Fetcher
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("path,allowed", [
+    ("/", True), ("/blocked", False), ("/blocked/public", True),
+    ("/private/user/profile", False), ("/private/user/other", True),
+])
+async def test_robots_uses_specificity_and_wildcards(path, allowed):
+    fetcher = Fetcher(Settings(_env_file=None, env="test", auth_mode="jwt"))
+
+    async def raw(url, limit):
+        return 200, {}, b"User-agent: *\nAllow: /\nDisallow: /blocked\nAllow: /blocked/public\nDisallow: /private/*/profile$\n"
+
+    fetcher.raw = raw
+    try:
+        assert await fetcher.permitted("https://public.example" + path) is allowed
+    finally:
+        await fetcher.close()
+
+
+@pytest.mark.asyncio
 async def test_dns_pinned_https_preserves_host_and_text_tls_name(monkeypatch):
     import daleel.network as network
 

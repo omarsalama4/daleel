@@ -330,6 +330,7 @@ export interface WorkflowVersion {
   author: string;
   changeSummary: string;
   plan: Plan;
+  seedUrls?: string[];
 }
 
 export interface Workflow {
@@ -358,6 +359,7 @@ export interface RunWorkflow {
   mode: RunMode;
   limits?: Partial<Limits>;
   aiUsageCapUsd?: number;
+  selectedSessionDomain?: string;
 }
 
 export type RecipeStatus = 'draft' | 'previewed' | 'approved' | 'active' | 'needs_review' | 'retired';

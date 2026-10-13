@@ -1200,13 +1200,15 @@ export async function extractGreenhouseOpportunities(boardUrl: string) {
 
   async runWorkflow(workflowId: string, body: RunWorkflow): Promise<Run> {
     const wf = await this.getWorkflow(workflowId);
-    const latestVersion = wf.versions[0];
+    const latestVersion = wf.versions.find(v => v.version === wf.currentVersion)!;
     return this.createRun({
       query: latestVersion.plan.query,
       mode: body.mode,
       relevance: latestVersion.plan.relevance,
       limits: body.limits,
       aiUsageCapUsd: body.aiUsageCapUsd,
+      selectedSessionDomain: body.selectedSessionDomain,
+      seedUrls: latestVersion.seedUrls,
       workflowId,
     });
   }

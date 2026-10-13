@@ -5,6 +5,7 @@ annotated-types==0.8.0
 anyio==4.15.1
 asgiref==3.12.1
 beautifulsoup4==4.15.0
+protego==0.7.0
 boto3==1.43.108
 botocore==1.43.108
 certifi==2026.7.22

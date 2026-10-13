@@ -491,7 +491,8 @@ def make_app(settings=None):
         plan = version["plan"]
         return await create_run(app.state, a, CreateRun(query=plan["query"], mode=body.mode,
             relevance=plan["relevance"], limits=body.limits or Limits(**plan["limits"]),
-            seedUrls=version.get("seedUrls", []), aiUsageCapUsd=body.aiUsageCapUsd, workflowId=workflow_id), plan_override=plan)
+            seedUrls=version.get("seedUrls", []), aiUsageCapUsd=body.aiUsageCapUsd,
+            selectedSessionDomain=body.selectedSessionDomain, workflowId=workflow_id), plan_override=plan)
 
     @app.get(prefix + "/recipes")
     def recipes(cursor: str | None = None, site: str | None = None, a=Depends(actor)):

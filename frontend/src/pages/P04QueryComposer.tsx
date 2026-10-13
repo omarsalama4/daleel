@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApi } from '../services/api';
 import type { RunMode, Limits, SiteSession } from '../types/api';
 import {
@@ -26,6 +26,10 @@ const DEFAULT_LIMITS: Limits = {
 export const P04QueryComposer: React.FC = () => {
   const api = useApi();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const workflowId = searchParams.get('workflowId');
+  const [workflowLoading, setWorkflowLoading] = useState(!!workflowId);
+  const [workflowLoadFailed, setWorkflowLoadFailed] = useState(false);
 
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<RunMode>('approval'); // Approval by default per confirmed PRD decision!
@@ -52,6 +56,27 @@ export const P04QueryComposer: React.FC = () => {
   const retriesInputRef = useRef<HTMLInputElement>(null);
   const downloadInputRef = useRef<HTMLInputElement>(null);
   const aiCapInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!workflowId) { setWorkflowLoading(false); return; }
+    let active = true;
+    setWorkflowLoading(true);
+    setWorkflowLoadFailed(false);
+    api.getWorkflow(workflowId).then(workflow => {
+      if (!active) return;
+      const version = workflow.versions.find(v => v.version === workflow.currentVersion);
+      if (!version) throw new Error('Saved workflow version is unavailable.');
+      setQuery(version.plan.query);
+      setRelevance(version.plan.relevance);
+      setSeedUrls(version.seedUrls || []);
+      setLimits({ ...version.plan.limits });
+    }).catch(err => {
+      if (!active) return;
+      setWorkflowLoadFailed(true);
+      setError(err?.detail || err?.message || 'Failed to load saved workflow.');
+    }).finally(() => { if (active) setWorkflowLoading(false); });
+    return () => { active = false; };
+  }, [api, workflowId]);
 
   // Unsaved changes guard
   const isDirty = query.trim().length > 0 || seedUrls.length > 0 || filterNotes.trim().length > 0;
@@ -122,7 +147,7 @@ export const P04QueryComposer: React.FC = () => {
       errors.downloadMb = 'Download limit must be an integer between 1 and 100 MB.';
     }
 
-    if (!Number.isFinite(aiUsageCapUsd) || aiUsageCapUsd < 0 || aiUsageCapUsd > 0.25 || !Number.isInteger(aiUsageCapUsd * 100)) {
+    if (!Number.isFinite(aiUsageCapUsd) || aiUsageCapUsd < 0 || aiUsageCapUsd > 0.25 || aiUsageCapUsd !== Math.round(aiUsageCapUsd * 100) / 100) {
       errors.aiCap = 'AI cap must be between $0.00 and $0.25 (e.g. $0.15).';
     }
 
@@ -168,8 +193,9 @@ export const P04QueryComposer: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const newRun = await api.createRun({
-        query: query.trim(),
+      const newRun = workflowId ? await api.runWorkflow(workflowId, { mode, limits, aiUsageCapUsd,
+        selectedSessionDomain: selectedSessionDomain || undefined }) : await api.createRun({
+        query: query.trim() + (filterNotes.trim() ? `\nPreferences: ${filterNotes.trim()}` : ''),
         mode,
         relevance,
         seedUrls,
@@ -202,6 +228,7 @@ export const P04QueryComposer: React.FC = () => {
       {/* Page Title & Intro */}
       <div>
         <h1 className="page-title">New research</h1>
+        {workflowId && <p className="text-sm text-muted-ink">Reusing the saved query, sources, relevance criteria and extraction schema. You can adjust supervision and run limits.</p>}
         <p className="text-sm text-muted-ink mt-1">
           Turn an arbitrary research question into a bounded crawl and an evidence-backed result set.
         </p>
@@ -241,6 +268,7 @@ export const P04QueryComposer: React.FC = () => {
             ref={queryInputRef}
             rows={3}
             value={query}
+            readOnly={!!workflowId}
             onChange={(e) => {
               setQuery(e.target.value);
               if (fieldErrors.query) {
@@ -332,6 +360,7 @@ export const P04QueryComposer: React.FC = () => {
                 key={lvl}
                 type="button"
                 onClick={() => setRelevance(lvl)}
+                disabled={!!workflowId}
                 className={`py-2 px-3 text-xs font-medium rounded capitalize border min-target transition-colors ${
                   relevance === lvl
                     ? 'bg-deep-teal-subtle text-deep-teal border-deep-teal font-semibold'
@@ -360,6 +389,7 @@ export const P04QueryComposer: React.FC = () => {
             <input
               type="url"
               value={seedInput}
+              disabled={!!workflowId}
               onChange={(e) => setSeedInput(e.target.value)}
               placeholder="https://example.com/jobs"
               className="flex-1 p-2 text-sm border border-line rounded bg-surface text-ink font-mono-tech placeholder:font-sans placeholder:text-muted-ink/60"
@@ -367,6 +397,7 @@ export const P04QueryComposer: React.FC = () => {
             <button
               type="button"
               onClick={handleAddSeed}
+              disabled={!!workflowId}
               className="px-4 py-2 text-sm font-medium rounded bg-surface hover:bg-canvas text-ink border border-line min-target shrink-0"
             >
               Add URL
@@ -386,6 +417,7 @@ export const P04QueryComposer: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleRemoveSeed(i)}
+                      disabled={!!workflowId}
                       className="text-muted-ink hover:text-ink font-bold ml-1"
                       aria-label={`Remove seed URL ${url}`}
                     >
@@ -405,6 +437,7 @@ export const P04QueryComposer: React.FC = () => {
               id="filter-notes"
               type="text"
               value={filterNotes}
+              disabled={!!workflowId}
               onChange={(e) => setFilterNotes(e.target.value)}
               placeholder="e.g., Exclude aggregator portals, prefer direct career pages"
               className="w-full p-2 text-xs border border-line rounded bg-surface text-ink"
@@ -497,7 +530,7 @@ export const P04QueryComposer: React.FC = () => {
                     min={0}
                     max={5}
                     value={limits.depth}
-                    onChange={(e) => setLimits({ ...limits, depth: parseInt(e.target.value) || 5 })}
+                    onChange={(e) => setLimits({ ...limits, depth: Number(e.target.value) })}
                     className="w-full p-1.5 text-xs border border-line rounded bg-surface text-ink font-mono-tech"
                   />
                 </div>
@@ -563,7 +596,7 @@ export const P04QueryComposer: React.FC = () => {
                     min={0}
                     max={0.25}
                     value={aiUsageCapUsd}
-                    onChange={(e) => setAiUsageCapUsd(parseFloat(e.target.value) || 0.25)}
+                    onChange={(e) => setAiUsageCapUsd(Number(e.target.value))}
                     className="w-full p-1.5 text-xs border border-line rounded bg-surface text-ink font-mono-tech"
                   />
                 </div>
@@ -588,7 +621,7 @@ export const P04QueryComposer: React.FC = () => {
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || workflowLoading || workflowLoadFailed}
             className="flex items-center gap-2 px-5 py-2.5 rounded bg-deep-teal hover:bg-deep-teal-hover text-surface text-sm font-medium transition-colors disabled:opacity-60 min-target"
           >
             <Compass className="w-4 h-4" />

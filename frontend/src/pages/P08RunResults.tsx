@@ -119,7 +119,9 @@ export const P08RunResults: React.FC = () => {
               {queryText || 'Research Results'}
             </h1>
             <p className="text-sm text-muted-ink mt-0.5">
-              Complete across discovered in-scope pages. Grounded in field-level source citations.
+              {runStatus === 'partial' ? 'Partial results. Review coverage and skipped pages before drawing conclusions.' :
+                runStatus === 'complete' ? 'Traversal finished within allocated limits. Review coverage for excluded pages.' :
+                'Results collected so far. Review run activity and coverage for pending work.'}
             </p>
           </div>
 
