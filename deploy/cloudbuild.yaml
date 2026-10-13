@@ -1,6 +1,8 @@
 steps:
   - name: gcr.io/cloud-builders/docker
     args: ['build', '--build-arg', 'VITE_NEON_AUTH_URL=${_NEON_AUTH_URL}', '-f', 'backend/Dockerfile', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/daleel/backend:${_IMAGE_TAG}', '.']
+  - name: gcr.io/cloud-builders/docker
+    args: ['run', '--rm', '--entrypoint', 'python', '${_REGION}-docker.pkg.dev/$PROJECT_ID/daleel/backend:${_IMAGE_TAG}', 'scripts/verify-image.py']
 images: ['${_REGION}-docker.pkg.dev/$PROJECT_ID/daleel/backend:${_IMAGE_TAG}']
 substitutions:
   _REGION: europe-west1

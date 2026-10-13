@@ -1,10 +1,15 @@
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import uuid
+import logging
+import time
 from pathlib import Path
 from sqlalchemy import (create_engine, String, Integer, JSON, Text, ForeignKey, UniqueConstraint,
                         Index, select, text, event)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+from sqlalchemy.exc import OperationalError
+
+logger = logging.getLogger("daleel.database")
 
 
 def now():
@@ -135,18 +140,35 @@ class Database:
     def init(self):
         if self.settings.env != "production":
             Base.metadata.create_all(self.engine)
-        else:
-            with self.engine.connect() as db:
-                unsafe = db.scalar(text("""SELECT rolsuper OR rolbypassrls OR EXISTS (
-                  SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename IN
-                  ('resources','tasks','spend','session_secrets','idempotency','run_leases')
-                  AND pg_has_role(current_user,tableowner,'MEMBER'))
-                  FROM pg_roles WHERE rolname=current_user"""))
-                if unsafe:
-                    raise RuntimeError("Production database connection must be a non-owner NOBYPASSRLS role")
-                for table in ("resources", "tasks", "spend", "session_secrets", "idempotency", "run_leases"):
-                    if not db.scalar(text("SELECT relrowsecurity FROM pg_class WHERE oid=to_regclass(:table)"), {"table": table}):
-                        raise RuntimeError("Workspace RLS migration is required for every tenant table")
+            return
+        for attempt in range(3):
+            try:
+                self.verify_production_boundary()
+                return
+            except OperationalError as exc:
+                code = getattr(exc.orig, "sqlstate", None)
+                transient = code in {"57P01", "57P02", "57P03", "08000", "08001", "08003", "08006"}
+                if attempt == 2 or not (transient or exc.connection_invalidated):
+                    raise
+                # Retry only read-only startup checks, using a fresh connection.
+                # Never suppress invalid roles, missing RLS, or failed migrations.
+                logger.warning("Database startup connection interrupted; retry %s/3 (%s)",
+                               attempt + 2, code or "connection_invalidated")
+                self.engine.dispose()
+                time.sleep(2 ** attempt)
+
+    def verify_production_boundary(self):
+        with self.engine.connect() as db:
+            unsafe = db.scalar(text("""SELECT rolsuper OR rolbypassrls OR EXISTS (
+              SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename IN
+              ('resources','tasks','spend','session_secrets','idempotency','run_leases')
+              AND pg_has_role(current_user,tableowner,'MEMBER'))
+              FROM pg_roles WHERE rolname=current_user"""))
+            if unsafe:
+                raise RuntimeError("Production database connection must be a non-owner NOBYPASSRLS role")
+            for table in ("resources", "tasks", "spend", "session_secrets", "idempotency", "run_leases"):
+                if not db.scalar(text("SELECT relrowsecurity FROM pg_class WHERE oid=to_regclass(:table)"), {"table": table}):
+                    raise RuntimeError("Workspace RLS migration is required for every tenant table")
 
     @contextmanager
     def session(self, workspace_id=None):

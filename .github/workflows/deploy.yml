@@ -19,7 +19,7 @@ jobs:
           POSTGRES_DB: daleel_ci
         ports: ['5432:5432']
         options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U postgres -d daleel_ci" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DALEEL_TEST_POSTGRES_URL: postgresql+psycopg://postgres:ci-disposable-only@localhost:5432/daleel_ci
     environment: beta
@@ -42,6 +42,26 @@ jobs:
           npm --prefix frontend test
           npm --prefix frontend audit --audit-level=high
           npm --prefix frontend run build
+      - name: Validate deployment configuration before cloud changes
+        env:
+          PROJECT: ${{ vars.GCP_PROJECT_ID }}
+          REGION: ${{ vars.GCP_REGION }}
+          RUNTIME_SECRET_VERSION: ${{ vars.RUNTIME_SECRET_VERSION }}
+          MIGRATION_SECRET_VERSION: ${{ vars.MIGRATION_SECRET_VERSION }}
+          BROKER_SECRET_VERSION: ${{ vars.BROKER_SECRET_VERSION }}
+          AUTH_URL: ${{ vars.NEON_AUTH_URL }}
+        run: |
+          python - <<'PY'
+          import os, re
+          for key in ('RUNTIME_SECRET_VERSION', 'MIGRATION_SECRET_VERSION', 'BROKER_SECRET_VERSION'):
+              if not re.fullmatch(r'[1-9][0-9]*', os.environ.get(key, '')):
+                  raise SystemExit(key + ' must pin a positive numeric secret version')
+          if not os.environ.get('PROJECT') or not os.environ.get('REGION'):
+              raise SystemExit('Deployment project and region must be configured')
+          if not os.environ.get('AUTH_URL', '').startswith('https://'):
+              raise SystemExit('Neon Auth requires a configured HTTPS origin')
+          print('Deployment configuration preflight passed')
+          PY
       - name: Verify deployment identity claims
         env:
           WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -63,6 +83,15 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@v2
+      - name: Verify build resource access before upload
+        env:
+          PROJECT: ${{ vars.GCP_PROJECT_ID }}
+          REGION: ${{ vars.GCP_REGION }}
+          SOURCE_BUCKET: ${{ vars.GCP_BUILD_SOURCE_BUCKET }}
+        run: |
+          test -n "$SOURCE_BUCKET"
+          gcloud storage buckets describe "gs://$SOURCE_BUCKET" --format='value(name)'
+          gcloud artifacts repositories describe daleel --project="$PROJECT" --location="$REGION" --format='value(name)'
       - name: Build image
         env:
           PROJECT: ${{ vars.GCP_PROJECT_ID }}
