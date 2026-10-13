@@ -25,6 +25,36 @@ class Extracted(BaseModel):
     reason: str
 
 
+def same_finding(first, second):
+    """Merge only supported identities; keep distinct applications separate."""
+    from .network import canonical
+    from .errors import Problem
+
+    def values(finding):
+        return {k: v["value"] for k, v in finding.get("values", {}).items()
+                if v.get("evidenceState") == "verified" and v.get("value")}
+
+    def url(value):
+        try:
+            return canonical(value) if value else None
+        except (Problem, ValueError):
+            return None
+
+    a, b = values(first), values(second)
+    if not a or not b or first.get("status") == "duplicate":
+        return False
+    if a == b and url(first.get("sourceUrl")) and url(first.get("sourceUrl")) == url(second.get("sourceUrl")):
+        return True
+    identity = ("title", "employer", "location")
+    if not all(a.get(k) and b.get(k) and a[k].strip().casefold() == b[k].strip().casefold()
+               and a[k].strip().casefold() != "unknown" for k in identity):
+        return False
+    application_a, application_b = url(a.get("applicationUrl")), url(b.get("applicationUrl"))
+    if application_a or application_b:
+        return bool(application_a and application_a == application_b)
+    return bool(a.get("description") and a["description"] == b.get("description"))
+
+
 def default_fields(query):
     if re.search(r"\b(job|career|engineer|opportunit)\w*\b|وظائف|مهندس", query, re.I):
         keys = [("title", "Job title", True), ("employer", "Employer", True),

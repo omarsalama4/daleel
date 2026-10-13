@@ -608,8 +608,27 @@ def make_app(settings=None):
         async with httpx.AsyncClient(timeout=30, trust_env=False) as client:
             res = await client.request(method, settings.session_broker_url.rstrip("/") + path,
                                        headers={"Authorization": header}, json=data)
+        if res.status_code == 410:
+            raise Problem(410, "SESSION_EXPIRED", "The isolated browser connection expired or restarted. Start a new connection.")
+        if res.status_code in (401, 403):
+            raise Problem(503, "SESSION_SERVICE_UNAVAILABLE", "Daleel could not authenticate its browser service. Contact the operator; changing your site login will not fix this.", True)
         if res.status_code >= 400:
-            raise Problem(409, "SESSION_NOT_VALIDATED", "Complete sign-in in the hosted browser before connecting")
+            try:
+                detail = res.json().get("detail")
+            except (ValueError, AttributeError):
+                detail = None
+            if not isinstance(detail, str):
+                detail = None
+            messages = {
+                "The site has not confirmed an authenticated session": "Daleel could not find the site's configured signed-in control. Return to a normal site page and retry. Do not change your password or MFA settings for Daleel.",
+                "Return to the authorized target site after login": "Return to the selected research site after completing login, then retry Finish connection.",
+                "This domain needs an operator-configured signed-in condition": "This site does not have a configured login adapter. Ask the operator to configure and validate one.",
+                "Browser capacity reached or connection already exists": "The isolated browser is busy. Close or finish another connection, then retry.",
+                "Could not open the configured login page": "Daleel could not load this site's login page. The operator must check its adapter and browser service.",
+            }
+            # Never forward arbitrary upstream text, which can contain private URLs.
+            raise Problem(409, "SESSION_NOT_VALIDATED", messages.get(detail,
+                "The browser service could not validate this connection. Ask the operator to inspect the adapter."))
         return res.json()
 
     @app.get(prefix + "/sessions")

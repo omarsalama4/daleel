@@ -95,6 +95,75 @@ def test_evidence_rejects_fabricated_values():
     assert finding["evidence"] == [] and finding["status"] == "incomplete"
 
 
+def test_opportunity_duplicates_keep_one_root_and_all_sources(client, app, monkeypatch):
+    import json
+    async def public(*args):
+        return ["93.184.216.34"]
+    monkeypatch.setattr("daleel.network.resolve_public", public)
+
+    async def fetch(self, url, *args, **kwargs):
+        item = {"@type": "JobPosting", "title": "AI Engineer", "description": "Build reliable AI models",
+                "hiringOrganization": {"name": "Example"},
+                "jobLocation": {"address": {"addressLocality": "Cairo", "addressCountry": "Egypt"}},
+                "url": "https://employer.example.org/apply?id=1&utm_source=" + url.rsplit("/", 1)[-1]}
+        html = '<html><title>AI Engineer</title><body>AI Engineer Example Cairo, Egypt Build reliable AI models'
+        html += '<script type="application/ld+json">' + json.dumps(item) + '</script></body></html>'
+        return {"url": url, "html": html, "bytes": len(html), "status": 200, "title": "AI Engineer"}
+
+    monkeypatch.setattr("daleel.engine.Fetcher.fetch", fetch)
+    run = new_run(client, seedUrls=["https://example.org/one", "https://example.org/two", "https://example.org/three"],
+                  limits={"pages": 5, "depth": 0})
+    wid = client.get("/api/v1/me").json()["workspace"]["id"]
+    assert client.post(f"/api/v1/runs/{run['id']}/approve").status_code == 202
+    asyncio.run(app.state.runtime.execute(wid, run["id"]))
+    findings = client.get(f"/api/v1/runs/{run['id']}/findings").json()["items"]
+    roots = [f for f in findings if f["status"] != "duplicate"]
+    duplicates = [f for f in findings if f["status"] == "duplicate"]
+    assert len(roots) == 1 and len(duplicates) == 2
+    assert all(f["duplicateGroupId"] == roots[0]["id"] for f in duplicates)
+    assert len(roots[0]["duplicateSources"]) == 2
+
+
+@pytest.mark.parametrize("upstream,detail,expected,code,fragment", [
+    (410, "Connection unavailable", 410, "SESSION_EXPIRED", "expired or restarted"),
+    (401, "Broker service authentication required", 503, "SESSION_SERVICE_UNAVAILABLE", "changing your site login will not fix"),
+    (409, "The site has not confirmed an authenticated session", 409, "SESSION_NOT_VALIDATED", "Do not change your password or MFA"),
+    (409, {"private": "upstream-sensitive-value"}, 409, "SESSION_NOT_VALIDATED", "inspect the adapter"),
+])
+def test_broker_errors_distinguish_site_login_from_service_failure(client, app, monkeypatch, upstream, detail, expected, code, fragment):
+    import httpx
+    app.state.settings.session_broker_url = "https://broker.example.org"
+    app.state.settings.session_encryption_key = "configured"
+
+    async def public(*args):
+        return ["93.184.216.34"]
+
+    async def authorization(*args):
+        return "Bearer synthetic-test-only"
+
+    class BrokerClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def request(self, *args, **kwargs):
+            return httpx.Response(upstream, json={"detail": detail})
+
+    monkeypatch.setattr("daleel.app.resolve_public", public)
+    monkeypatch.setattr("daleel.broker_auth.authorization", authorization)
+    monkeypatch.setattr("daleel.app.httpx.AsyncClient", BrokerClient)
+    result = client.post("/api/v1/sessions", json={"domain": "example.org"})
+    assert result.status_code == expected
+    assert result.json()["code"] == code
+    assert fragment in result.json()["detail"]
+    assert "upstream-sensitive-value" not in result.text
+
+
 def test_budget_admission_is_atomic(client, app):
     run = new_run(client, aiUsageCapUsd=.25)
     wid = client.get("/api/v1/me").json()["workspace"]["id"]

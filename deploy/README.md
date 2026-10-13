@@ -64,18 +64,18 @@ The bundled broker isolates every connection by workspace and browser process. A
 
 Configure `DALEEL_BROKER_PUBLIC_URL` and `DALEEL_BROKER_SITES` as JSON, keyed by target hostname. Each adapter supplies `loginUrl`, `authenticatedSelector` (a visible, site-specific signed-in control), and optional `allowedHosts` for login dependencies. No adapters are pre-enabled; selectors must be reviewed against the real site. A domain without a condition fails clearly. The viewer supports user clicks, typing, Tab/Enter, and scrolling; passkeys, downloads, WebSocket sites and popup OAuth need a separate reviewed adapter. Set `DALEEL_BROWSER_ENABLED=true` for JavaScript-dependent research pages.
 
-Keep broker max instances at one while connections are in memory, allocate Chromium memory, and configure instance CPU/lifetime so its expiry reaper can run. Scaling the broker across instances requires external connection routing; it is not covered by the API/worker deployment workflow. Its viewer is a secret capability; restrict service routes with a strong broker token and keep all access logs disabled.
+Keep broker max instances at one while connections are in memory, allocate Chromium memory, and configure instance CPU/lifetime so its expiry reaper can run. Scaling the broker across instances requires external connection routing. Its viewer is a secret capability; keep access logs disabled. Hosted service routes use an audience-bound Google identity token and verify the exact runtime service account. Local development can use a separate service token.
 
 Required broker routes:
 
 - `POST /connections`: `{id, workspaceId, url}` → `{browserUrl}`.
 - `POST /connections/{id}/finish`: `{workspaceId}` → `{authenticated: true, storageState: {cookies, origins}}` only after validated login.
 
-Keep that broker on a protected service-to-service endpoint. Configure `DALEEL_SESSION_BROKER_URL`, `DALEEL_SESSION_BROKER_TOKEN` and a Fernet encryption key through secrets. Never bypass MFA, CAPTCHA, robots policy or a site's explicit restriction.
+The broker's HTTPS viewer is publicly reachable only through an expiring capability; backend operations require workload authentication. Configure `DALEEL_SESSION_BROKER_URL`, `DALEEL_SESSION_BROKER_AUTH_MODE=google_identity`, the broker's exact `DALEEL_BROKER_CALLER_EMAIL`, and a Fernet encryption key through designated secrets. GitHub target-site login is an optional authenticated-crawling test, separate from repository deployment federation. It is not needed for public research or for using Daleel itself. Never change a target account's MFA configuration to connect it to Daleel.
 
 ## Release gate
 
-Hosted beta remains pending real-account sign-in and invite validation, PostgreSQL migrations and isolation verification, Cloud Run worker execution/recovery, object storage, model/search credentials, and configured/verified browser adapters. Build success alone does not establish hosted readiness.
+See the current gates and observed evidence in `PRODUCTION_READINESS.md`. Operator sign-in/invitation, PostgreSQL isolation/restore, hosted worker recovery, private storage and live provider setup have passed. Password-reset completion, authenticated target-site validation and broader quality checks remain pending. Build success alone does not establish complete readiness.
 
 
 ## Verification and rollback

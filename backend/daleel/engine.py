@@ -14,7 +14,7 @@ from opentelemetry import trace
 from .db import Task, Workspace, Secret, RunLease, now, uid, resource, resources, put
 from .services import need, event, add_task, TERMINAL, active_seconds
 from .network import Fetcher, canonical, hostname, parse_page, resolve_public
-from .agents import extract_page
+from .agents import extract_page, same_finding
 from .errors import Problem
 from .storage import require_storage
 
@@ -454,13 +454,8 @@ class Runtime:
                 key_fields = [finding["values"].get(k, {}).get("value", "").strip().casefold()
                               for k in ("title", "employer", "location")]
                 duplicate_key = hashlib.sha256("|".join(key_fields).encode()).hexdigest()
-                application = finding["values"].get("applicationUrl", {}).get("value", "")
-                description = finding["values"].get("description", {}).get("value", "")
                 prior = next((f for f in resources(db, wid, "finding", rid)
-                              if f.data.get("dedupKey") == duplicate_key and all(key_fields)
-                              and "unknown" not in key_fields and (
-                                  application and application == f.data["values"].get("applicationUrl", {}).get("value")
-                                  or not application and description and description == f.data["values"].get("description", {}).get("value"))), None)
+                              if same_finding(f.data, finding)), None)
                 finding["dedupKey"] = duplicate_key
                 if prior:
                     finding["status"] = "duplicate"
