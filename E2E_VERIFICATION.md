@@ -64,3 +64,13 @@ Real third-party sign-in, email verification and MFA are human steps. Synthetic 
 ### Release verification repair
 
 The first cloud release (`38471031953`) stopped before migration/service updates: Cloud Build's image verification used `wait_for_function` string evaluation, which Chromium rejected under the viewer's CSP without `unsafe-eval`. The application image built successfully. The check now polls the image's natural width through a Playwright locator assertion, preserving CSP. The repaired API/frontend/Chromium smoke script passed locally. Release retry results are recorded after completion.
+
+### Successful hosted release
+
+- Release commit: `9f04283555857586af8053a21197d3ea93850bbb`.
+- [Build](https://github.com/omarsalama4/daleel/actions/runs/38472768139), [Browser E2E](https://github.com/omarsalama4/daleel/actions/runs/38472768153), and [Deploy beta](https://github.com/omarsalama4/daleel/actions/runs/38473447087) all completed successfully.
+- API revision `daleel-api-00017-bag` and broker revision `daleel-broker-00009-qbz` serve the release. The worker and scheduled recovery jobs also use the same release image.
+- All **10 hosted smoke checks passed**: API readiness, API authentication, absence of both test-only routes, rejection of unknown viewer capabilities/status, broker service authentication, sign-in shell, deployed recipe browser controls, and deployed sign-in guidance.
+- The production image smoke check also passed locally with a 512 MB memory limit and one CPU. The CSP remains unchanged.
+
+Hosted checks were read-only and did not enter credentials or trigger paid research. The local machine-readable evidence is in ignored `data/browser-toolkit-hosted-verification.json`. Production smoke checks establish readiness and expected boundaries; they do not replace the human sign-in checks described above.
