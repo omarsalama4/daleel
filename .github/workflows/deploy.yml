@@ -39,6 +39,7 @@ jobs:
       - name: Verify release source
         run: |
           pip install -r backend/requirements.lock && pip install -e 'backend[dev]'
+          python -m playwright install --with-deps chromium
           ruff check backend/daleel backend/migrations
           pytest backend/tests -q
           pip install pip-audit==2.10.1

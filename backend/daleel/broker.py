@@ -77,7 +77,7 @@ class Finish(BaseModel):
 class Control(BaseModel):
     action: str = Field(pattern='^(click|type|key|scroll)$')
     x: float = Field(0, ge=0, le=1280)
-    y: float = Field(0, ge=0, le=900)
+    y: float = Field(0, ge=-900, le=900)
     text: str = Field('', max_length=4096)
 
 
@@ -175,25 +175,23 @@ async def finish(connection_id: str, body: Finish, request: Request):
         return {'authenticated': True, 'storageState': state}
 
 
+@app.post('/connections/{connection_id}/cancel')
+async def cancel_connection(connection_id: str, body: Finish, request: Request):
+    await service(request)
+    item = connections.get(connection_id)
+    if not item or item['workspace'] != body.workspaceId:
+        raise HTTPException(410, 'Connection unavailable')
+    async with item['control_lock']:
+        connections.pop(connection_id, None)
+        await dispose(item)
+    return {'ok': True}
+
+
 @app.get('/viewer/{capability}', response_class=HTMLResponse)
 async def view(capability: str):
     viewer(capability)
-    return '''<!doctype html><html><meta name="viewport" content="width=device-width"><title>Daleel authorized sign-in</title>
-    <style>body{font:16px system-ui;background:#f7f7f7;margin:20px}img{max-width:100%;border:1px solid #ddd}button,input{padding:10px;margin:5px}p{max-width:75ch}</style>
-    <h1>Authorized site sign-in</h1><p>Click the remote page, then type into its focused field using the control below. Complete MFA personally. Return to Daleel and choose Finish connection.</p>
-    <img id="screen" alt="Isolated browser viewport" width="1280" height="900" onerror="document.getElementById('status').textContent='Browser image could not load. Refresh this page or start a new connection in Daleel.'">
-    <form id="typing"><input id="text" type="password" autocomplete="off" placeholder="Type into the focused remote field"><button>Send text</button></form>
-    <button onclick="control({action:'key',text:'Tab'})">Tab</button><button onclick="control({action:'key',text:'Enter'})">Enter</button>
-    <button onclick="control({action:'key',text:'Backspace'})">Backspace</button>
-    <button onclick="control({action:'scroll',y:600})">Scroll down</button><p id="status"></p>
-    <script>
-    const base=location.pathname;let current;
-    async function refresh(){try{const r=await fetch(base+'/screen');if(!r.ok)throw Error('Connection unavailable');const b=await r.blob();const next=URL.createObjectURL(b);document.getElementById('screen').src=next;if(current)URL.revokeObjectURL(current);current=next;}catch(e){document.getElementById('status').textContent=e.message;}}
-    async function control(body){const r=await fetch(base+'/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)document.getElementById('status').textContent='Control unavailable';await refresh();}
-    document.getElementById('screen').onclick=e=>{const r=e.target.getBoundingClientRect();control({action:'click',x:(e.clientX-r.left)*1280/r.width,y:(e.clientY-r.top)*900/r.height});};
-    document.getElementById('typing').onsubmit=e=>{e.preventDefault();const el=document.getElementById('text');const text=el.value;el.value='';control({action:'type',text});};
-    refresh();setInterval(refresh,1500);
-    </script></html>'''
+    from .broker_viewer import VIEWER_HTML
+    return VIEWER_HTML
 
 
 @app.get('/viewer/{capability}/screen')
@@ -203,16 +201,44 @@ async def screenshot(capability: str):
         return Response(await item['page'].screenshot(type='jpeg', quality=75), media_type='image/jpeg')
 
 
+@app.get('/viewer/{capability}/status')
+async def viewer_status(capability: str):
+    item = viewer(capability)
+    async with item['control_lock']:
+        authenticated = hostname(item['page'].url) == item['domain'] and await item['page'].locator(
+            item['site']['authenticatedSelector']).first.is_visible()
+        return {'domain': item['domain'], 'authenticated': authenticated,
+                'remainingSeconds': max(0, int(item['expires'] - time.time()))}
+
+
+def same_origin(request):
+    origin = request.headers.get('origin')
+    if origin and origin.rstrip('/') != settings.broker_public_url.rstrip('/'):
+        raise HTTPException(403, 'Viewer origin mismatch')
+
+
+@app.post('/viewer/{capability}/close')
+async def close_viewer(capability: str, request: Request):
+    same_origin(request)
+    item = viewer(capability)
+    async with item['control_lock']:
+        key = next((key for key, value in connections.items() if value is item), None)
+        if key:
+            connections.pop(key, None)
+        await dispose(item)
+    return {'ok': True}
+
+
 @app.post('/viewer/{capability}/control')
 async def control(capability: str, body: Control, request: Request):
     item = viewer(capability)
     # Viewer capabilities stay in one origin. Reject cross-site requests and don't allow CORS.
-    origin = request.headers.get('origin')
-    if origin and origin.rstrip('/') != settings.broker_public_url.rstrip('/'):
-        raise HTTPException(403, 'Viewer origin mismatch')
+    same_origin(request)
     async with item['control_lock']:
         page = item['page']
         if body.action == 'click':
+            if body.y < 0:
+                raise HTTPException(422, 'Invalid click coordinates')
             await page.mouse.click(body.x, body.y)
         elif body.action == 'type':
             await page.keyboard.insert_text(body.text)

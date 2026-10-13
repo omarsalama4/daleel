@@ -33,6 +33,7 @@ jobs:
           python -m venv backend/.venv
           backend/.venv/bin/pip install -r backend/requirements.lock
           backend/.venv/bin/pip install -e 'backend[dev]'
+          backend/.venv/bin/python -m playwright install --with-deps chromium
           npm ci
           npm --prefix frontend ci
           npx @e2e-dev/web install chromium --with-deps

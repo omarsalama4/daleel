@@ -30,6 +30,7 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install -r backend/requirements.lock && pip install -e 'backend[dev]'
+      - run: python -m playwright install --with-deps chromium
       - run: ruff check backend/daleel backend/migrations
       - run: python -m compileall -q backend/daleel
       - run: pip install pip-audit==2.10.1 && pip-audit -r backend/requirements.lock --no-deps --disable-pip

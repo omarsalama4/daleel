@@ -1,0 +1,36 @@
+import { test } from '@e2e-dev/web';
+import { expect } from 'e2e';
+import { createPlan, finish, snapshot } from './support/research';
+
+test('reviewed browser steps expand a page, validate, export and replay in a crawl', async ({ app, screen }) => {
+  const query = `AI Engineer Cairo ${Date.now()}`;
+  const run = await createPlan(app, screen, query, 'http://127.0.0.1/job');
+  await finish(app, screen, run);
+  const s = await snapshot(app);
+  const recipe = s.resources.find((r: any) => r.kind === 'recipe' && r.data.sourceRunId === run.id).data;
+  await app.open(`/app/recipes/${recipe.id}`);
+  await screen.getByRole('button', 'Repair extraction steps').tap();
+  await screen.getByLabel('Sample page URL').fill('http://127.0.0.1/interactive');
+  await screen.getByLabel('Content selector').fill('#details');
+  await screen.getByLabel('What changed?').fill('Expand opportunity details before extraction');
+  await screen.getByText('Browser interactions (0)').tap();
+  await screen.getByRole('button', 'Add browser step').tap();
+  await screen.getByLabel('Target selector 1').fill('#expand');
+  await screen.getByRole('button', 'Add browser step').tap();
+  await screen.getByLabel('Action 2').selectOption({ value: 'wait' });
+  await screen.getByLabel('Target selector 2').fill('#details');
+  await screen.getByRole('button', 'Save repaired draft').tap();
+  await screen.getByRole('button', 'Mark Previewed').tap();
+  await screen.getByRole('button', 'Approve Recipe').tap();
+  await screen.getByRole('button', 'Validate Replay & Activate').tap();
+  await expect(screen.getByRole('button', 'Retire Recipe')).toBeVisible({ timeout: 30_000 });
+  const checked = (await snapshot(app)).resources.find((r: any) => r.kind === 'recipe' && r.data.id === recipe.id).data;
+  expect(checked.browserSteps).toHaveLength(2);
+  expect(checked.codeSnippet).toContain('browser_tools');
+  const rerun = await createPlan(app, screen, query, 'http://127.0.0.1/interactive');
+  await finish(app, screen, rerun);
+  const result = await snapshot(app);
+  const finding = result.resources.find((r: any) => r.kind === 'finding' && r.data.runId === rerun.id).data;
+  expect(finding.values.description.evidenceState).toBe('verified');
+  expect(finding.values.description.value).toContain('Build reliable AI models');
+});

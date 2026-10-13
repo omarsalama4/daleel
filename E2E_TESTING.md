@@ -57,4 +57,9 @@ These checks do not prove every third-party website or every language works. The
 
 The initial 22 deterministic browser cases passed; autonomous and Arabic cases also passed. Repetition and final CI results are recorded in `E2E_VERIFICATION.md`.
 
-ChatGPT rejected agent calls for both GPT-6-Luna and GPT-6.1-Sol with `MODEL_PROVIDER_FAILED: The usage limit has been reached`, despite a completed login. The agent-assisted case remains unverified until subscription quota becomes available; rerun `npx e2e run --tag agent --trace` then. Deterministic browser checks verify the same research flow without model calls.
+ChatGPT rejected agent calls for both GPT-6-Luna and GPT-6.1-Sol with `MODEL_PROVIDER_FAILED: The usage limit has been reached`, despite a completed login. That quota block was resolved on 14 October: the agent-assisted case passed with live ChatGPT model calls. Rerun `npx e2e run --tag agent --trace` when changing agent steps. Deterministic browser checks verify the same research flow without model calls.
+
+
+## Browser toolkit and human sign-in coverage
+
+See [browser toolkit](BROWSER_TOOLKIT.md). Tests now cover reviewed multi-step browser recipe editing, validation, export and crawl reuse; responsive hosted-viewer controls and expiry; connection validation/retry; and operator pages. Test fixtures simulate sign-in and never automate real MFA. CI installs both the E2E runner browser and backend Playwright Chromium.

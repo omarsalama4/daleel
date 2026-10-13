@@ -22,3 +22,7 @@ From `frontend/`, install dependencies with `npm ci`, then use `npm run dev`, `n
 
 The repository is public by the owner's choice. The hosted product remains an invite-only private beta. Browser E2E checks gate deployments; third-party authentication challenges remain human steps.
 
+
+## Research browser tools
+
+The [scoped browser toolkit](BROWSER_TOOLKIT.md) supports reviewed multi-step browser recipes and a planner callback adapter. Human sign-in/MFA runs in the separate isolated browser. See [E2E verification](E2E_VERIFICATION.md) for current checks and limits.

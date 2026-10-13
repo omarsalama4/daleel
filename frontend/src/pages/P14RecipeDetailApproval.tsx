@@ -7,6 +7,8 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { AccessibleTabs } from '../components/common/AccessibleTabs';
 import { RecipeVersionDiff } from '../components/common/RecipeVersionDiff';
 import { ApiErrorBanner } from '../components/common/ApiErrorBanner';
+import { BrowserStepsEditor } from '../components/common/BrowserStepsEditor';
+import type { BrowserStep } from '../types/api';
 import {
   ArrowLeft,
   Copy,
@@ -35,6 +37,7 @@ export const P14RecipeDetailApproval: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [useSession, setUseSession] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [browserSteps, setBrowserSteps] = useState<BrowserStep[]>([]);
 
   const updateTab = (tab: string) => {
     setSearchParams((prev) => {
@@ -90,10 +93,15 @@ export const P14RecipeDetailApproval: React.FC = () => {
   return (
     <div className="space-y-6">
       {recipe.status !== 'retired' && <section className="p-4 border border-line rounded bg-surface space-y-3">
+        {!!recipe.browserSteps?.length && <div className="space-y-2"><h2 className="text-sm font-semibold">Browser interactions for review</h2>
+          <ol className="list-decimal list-inside text-xs space-y-1">{recipe.browserSteps.map((step, index) => <li key={index}>
+            <strong>{step.action}</strong> {step.selector || `${step.pixels ?? 600} pixels`}{step.text ? ` — ${step.text}` : ''}
+          </li>)}</ol><p className="text-xs text-muted-ink">These steps run only after approval and successful validation. A changed target returns the recipe to review.</p></div>}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <button className="text-sm text-deep-teal" onClick={() => {
             setRepair(!repair); setSampleUrl(recipe.actions[0]?.target || '');
             setSelector(recipe.actions.find(a => a.type === 'extract')?.target || 'body');
+            setBrowserSteps(recipe.browserSteps || []);
           }}>Repair extraction steps</button>
           <label className="text-xs text-muted-ink flex items-center gap-2">
             <input type="checkbox" checked={useSession} onChange={e => setUseSession(e.target.checked)} />
@@ -102,7 +110,7 @@ export const P14RecipeDetailApproval: React.FC = () => {
         </div>
         {repair && <form className="space-y-3" onSubmit={async e => {
           e.preventDefault(); setSaving(true);
-          try { await api.repairRecipe(recipe.id, { sampleUrl, selector, changeSummary });
+          try { await api.repairRecipe(recipe.id, { sampleUrl, selector, changeSummary, browserSteps });
             await refetch(); setRepair(false); showToast('Repair saved as a new draft. Preview, approve and replay it before reuse.', 'info'); }
           catch (failure: any) { showToast(failure?.detail || 'Repair could not be saved.', 'error'); }
           finally { setSaving(false); }
@@ -110,6 +118,7 @@ export const P14RecipeDetailApproval: React.FC = () => {
           <label className="block text-xs">Sample page URL<input type="url" required value={sampleUrl} onChange={e => setSampleUrl(e.target.value)} className="block w-full border border-line rounded p-2 mt-1" /></label>
           <label className="block text-xs">Content selector<input required maxLength={500} value={selector} onChange={e => setSelector(e.target.value)} className="block w-full border border-line rounded p-2 mt-1" /></label>
           <label className="block text-xs">What changed?<input required maxLength={1000} value={changeSummary} onChange={e => setChangeSummary(e.target.value)} className="block w-full border border-line rounded p-2 mt-1" /></label>
+          <BrowserStepsEditor steps={browserSteps} onChange={setBrowserSteps} />
           <button disabled={saving} className="px-3 py-2 bg-deep-teal text-white rounded text-xs">{saving ? 'Saving...' : 'Save repaired draft'}</button>
         </form>}
       </section>}

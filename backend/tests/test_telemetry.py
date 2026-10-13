@@ -63,6 +63,20 @@ def test_export_preserves_agent_stage_and_operational_identifiers():
     provider.shutdown()
 
 
+def test_browser_trace_keeps_action_but_never_search_values_or_targets():
+    capture = Capture()
+    provider = TracerProvider(resource=Resource({"service.name": "daleel"}))
+    provider.add_span_processor(SimpleSpanProcessor(PrivateExporter(capture)))
+    with provider.get_tracer("test").start_as_current_span("browser.action") as span:
+        span.set_attribute("browser.action", "fill")
+        span.set_attribute("browser.text", "private-canary")
+        span.set_attribute("browser.selector", "private-canary")
+    assert capture.spans[0].name == "browser.action"
+    assert capture.spans[0].attributes == {"browser.action": "fill"}
+    assert "private-canary" not in capture.spans[0].to_json()
+    provider.shutdown()
+
+
 def test_google_export_uses_workload_credentials_and_project(monkeypatch):
     import google.auth
     import google.auth.transport.requests

@@ -114,6 +114,23 @@ class RecipePatch(Input):
     sampleUrl: str = Field(min_length=1, max_length=2048)
     selector: str = Field(min_length=1, max_length=500)
     changeSummary: str = Field(min_length=1, max_length=1000)
+    browserSteps: list[dict] | None = Field(None, max_length=20)
+
+    @field_validator("browserSteps")
+    @classmethod
+    def browser_steps(cls, steps):
+        if steps is None:
+            return None
+        from .browser_tools import BrowserAction
+        result = []
+        for step in steps:
+            action = BrowserAction.model_validate(step)
+            if action.ref or (action.action in ("click", "fill", "select", "wait", "extract") and not action.selector):
+                raise ValueError("Saved browser steps require stable selectors, never temporary references")
+            if action.action == "screenshot":
+                raise ValueError("Screenshots are transient tool outputs, not saved recipe steps")
+            result.append(action.model_dump(exclude_none=True))
+        return result
 
 
 class ConnectSite(Input):

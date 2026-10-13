@@ -83,12 +83,13 @@ export interface ApiClient {
   // Recipes
   listRecipes(params?: { cursor?: string; site?: string }): Promise<RecipePage>;
   getRecipe(recipeId: string): Promise<Recipe>;
-  repairRecipe(recipeId: string, patch: { sampleUrl: string; selector: string; changeSummary: string }): Promise<Recipe>;
+  repairRecipe(recipeId: string, patch: { sampleUrl: string; selector: string; changeSummary: string; browserSteps?: import('../../types/api').BrowserStep[] }): Promise<Recipe>;
   performRecipeAction(recipeId: string, action: RecipeAction): Promise<Recipe>;
 
   // Sessions
   listSessions(): Promise<SiteSession[]>;
   connectSite(domain: string): Promise<SessionConnection>;
+  cancelSiteConnection(connectionId: string): Promise<void>;
   finishSiteSessionConnection(connectionId: string): Promise<SiteSession>;
   updateSiteSession(sessionId: string, expiryMode: 'no_expiry' | 'date', expiresAt?: string): Promise<SiteSession>;
   revokeSiteSession(sessionId: string): Promise<void>;

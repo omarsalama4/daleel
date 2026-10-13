@@ -527,12 +527,16 @@ def make_app(settings=None):
                 "await page.goto(" + repr(url) + ")\n" + \
                 "content = await page.locator(" + repr(body.selector) + ").all_text_contents()\n"
             data = {**prior, "version": prior["version"] + 1, "status": "draft",
+                "browserSteps": body.browserSteps if body.browserSteps is not None else prior.get("browserSteps", []),
                 "actions": [{"order": 1, "type": "navigate", "target": url, "description": "Open scoped sample"},
                     {"order": 2, "type": "extract", "target": body.selector, "description": "Read selected source content"}],
                 "codeSnippet": code, "validation": {"samplePages": [url], "outcome": "pending", "driftDetected": False},
                 "versions": history + [{"version": prior["version"], "actions": prior["actions"],
-                    "validation": prior["validation"], "savedAt": now(), "changeSummary": body.changeSummary}],
+                    "validation": prior["validation"], "browserSteps": prior.get("browserSteps", []), "savedAt": now(), "changeSummary": body.changeSummary}],
                 "updatedAt": now()}
+            if data.get("browserSteps"):
+                from .recipes import browser_code
+                data["codeSnippet"] = browser_code(prior["site"], url, data["browserSteps"], body.selector)
             require_storage(db, a.workspace_id, len(json.dumps(data).encode()))
             r.data = data
             return data
@@ -575,6 +579,12 @@ def make_app(settings=None):
                         state = json.loads(Fernet(settings.session_encryption_key.encode()).decrypt(secret.ciphertext.encode()))
                         cookies = state["cookies"]
                 fetched = await fetcher.fetch(url, [data["site"]], cookies)
+                if data.get("browserSteps"):
+                    if not settings.browser_enabled:
+                        raise Problem(409, "BROWSER_DISABLED", "Browser recipe execution is disabled")
+                    from .browser import render_page
+                    fetched = await render_page(fetcher, fetched, [data["site"]], cookies,
+                                              state if cookies else None, steps=data["browserSteps"])
                 page = parse_page(fetched)
                 from .recipes import apply_recipe
                 from .agents import deterministic_extract, verify_result
@@ -674,6 +684,22 @@ def make_app(settings=None):
             connection = need(db, a.workspace_id, connection_id, "connection", lock=True)
             connection.data = {**connection.data, "state": "ready", "sessionId": rid}
             return session.data
+
+    @app.delete(prefix + "/sessions/connections/{connection_id}", status_code=204)
+    async def cancel_site_connection(connection_id: str, a=Depends(actor)):
+        with database.session(a.workspace_id) as db:
+            connection = need(db, a.workspace_id, connection_id, "connection")
+            if connection.data.get("sessionId") or connection.data.get("state") == "cancelled":
+                return Response(status_code=204)
+        try:
+            await broker("POST", f"/connections/{connection_id}/cancel", {"workspaceId": a.workspace_id})
+        except Problem as exc:
+            if exc.status != 410:
+                raise
+        with database.session(a.workspace_id) as db:
+            connection = need(db, a.workspace_id, connection_id, "connection", lock=True)
+            connection.data = {**connection.data, "state": "cancelled", "browserUrl": ""}
+        return Response(status_code=204)
 
     @app.patch(prefix + "/sessions/{session_id}")
     def edit_session(session_id: str, body: SessionPatch, a=Depends(actor)):

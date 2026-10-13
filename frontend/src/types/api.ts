@@ -387,11 +387,19 @@ export interface Recipe {
   version: number;
   status: RecipeStatus;
   actions: RecipeStep[];
+  browserSteps?: BrowserStep[];
   validation: RecipeValidation;
   codeExportAvailable: boolean;
   codeSnippet?: string;
   linkedWorkflowId?: string;
   versions?: { version: number; actions: RecipeStep[]; validation: RecipeValidation; savedAt: string; changeSummary: string }[];
+}
+
+export interface BrowserStep {
+  action: 'click' | 'wait' | 'fill' | 'select' | 'scroll';
+  selector?: string;
+  text?: string;
+  pixels?: number;
 }
 
 export interface RecipePage {

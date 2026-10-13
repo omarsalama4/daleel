@@ -9,6 +9,9 @@ for (const [route, heading] of [
   ['/app/settings/account', 'Account & workspace'],
   ['/app/settings/ai', 'AI processing & provider policy'],
   ['/app/settings/limits', 'Limits, storage & data deletion'],
+  ['/admin/invitations', 'Operator beta invitations'],
+  ['/admin/workspaces', 'Operator workspace operations'],
+  ['/admin/access-audit', 'Internal operator access audit'],
 ]) {
   test(`workspace page loads: ${heading}`, async ({ app, screen }) => {
     await app.open(route);

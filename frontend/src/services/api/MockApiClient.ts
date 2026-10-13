@@ -1257,6 +1257,8 @@ export async function extractGreenhouseOpportunities(boardUrl: string) {
   }
 
   // Sessions
+  async cancelSiteConnection(): Promise<void> { /* No remote browser in demo mode. */ }
+
   async listSessions(): Promise<SiteSession[]> {
     return Array.from(this.sessions.values());
   }

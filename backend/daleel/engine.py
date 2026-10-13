@@ -424,14 +424,18 @@ class Runtime:
                 remaining = int((run["limits"]["downloadMb"] - run["usage"]["downloadMb"]) * 1e6)
                 fetched = await fetcher.fetch(claimed["payload"]["url"], run.get("allowedDomains", []), cookies, remaining)
                 page = parse_page(fetched)
-                if self.settings.browser_enabled and len(page["text"]) < 200 and "<script" in fetched["html"]:
-                    from .browser import render_page
-                    page = parse_page(await render_page(fetcher, fetched, run.get("allowedDomains", []), cookies, session_state))
                 with self.session(wid) as db:
                     approved = next((r for r in resources(db, wid, "recipe")
                         if r.data["status"] == "active" and r.data["site"] == hostname(page["url"])
                         and r.data["task"] == run["query"]), None)
                     recipe = copy.deepcopy(approved.data) if approved else None
+                steps = recipe.get("browserSteps", []) if recipe else []
+                if steps and not self.settings.browser_enabled:
+                    raise Problem(409, "RECIPE_DRIFT", "Reviewed browser recipe requires browser execution to be enabled")
+                if self.settings.browser_enabled and (steps or (len(page["text"]) < 200 and "<script" in fetched["html"])):
+                    from .browser import render_page
+                    page = parse_page(await render_page(fetcher, fetched, run.get("allowedDomains", []), cookies,
+                        session_state, steps=steps, seconds=min(60, run["limits"]["minutes"] * 60), max_bytes=max(1, remaining)))
                 if recipe:
                     from .recipes import apply_recipe
                     page = apply_recipe(recipe, page)
@@ -464,6 +468,9 @@ class Runtime:
                 put(db, wid, "finding", finding, parent=rid, rid=finding["id"])
                 task.state = "succeeded"
                 task.result = {"httpStatus": page["status"], "findingId": finding["id"], "bytes": page["bytes"], "finalUrl": page["url"]}
+                if page.get("browserTrace"):
+                    task.result["browserActions"] = [{"action": r["action"], "outcome": r["outcome"]}
+                                                     for r in page["browserTrace"]]
                 usage["pagesFetched"] += 1
                 if not already_accounted:
                     usage["downloadMb"] += page["bytes"] / 1e6
@@ -513,7 +520,7 @@ class Runtime:
                 if exc.code == "DOWNLOAD_CAP":
                     run.data = {**run.data, "stopReason": "Download limit reached"}
                 gates = {"ACCESS_BARRIER": "login_mfa", "BOT_BARRIER": "captcha_bot_detector",
-                         "AI_CAP_REACHED": "ai_cap_reached", "STORAGE_QUOTA": "storage_quota",
+                        "AI_CAP_REACHED": "ai_cap_reached", "STORAGE_QUOTA": "storage_quota",
                          "RECIPE_DRIFT": "recipe_drift"}
                 if exc.code in gates:
                     task.state = "blocked"

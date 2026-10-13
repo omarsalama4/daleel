@@ -756,6 +756,20 @@ paths:
           $ref: '#/components/responses/Problem'
         default:
           $ref: '#/components/responses/Problem'
+  /sessions/connections/{connectionId}:
+    delete:
+      tags: [Sessions]
+      operationId: cancelSiteConnection
+      parameters:
+      - name: connectionId
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        '204':
+          description: Pending hosted browser closed; saved sessions are unaffected
+        default:
+          $ref: '#/components/responses/Problem'
   /sessions/{sessionId}:
     parameters:
     - $ref: '#/components/parameters/SessionId'
@@ -2239,6 +2253,11 @@ components:
           items:
             type: object
             additionalProperties: true
+        browserSteps:
+          type: array
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/BrowserStep'
         validation:
           type:
           - object
@@ -2264,6 +2283,12 @@ components:
       type: object
       required: [sampleUrl, selector, changeSummary]
       properties:
+        browserSteps:
+          type: array
+          maxItems: 20
+          description: Reviewed declarative browser actions; saving resets approval and validation.
+          items:
+            $ref: '#/components/schemas/BrowserStep'
         sampleUrl:
           type: string
           maxLength: 2048
@@ -2275,6 +2300,18 @@ components:
           type: string
           minLength: 1
           maxLength: 1000
+    BrowserStep:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [navigate, observe, click, fill, select, scroll, wait, extract, back]
+        url: {type: string, maxLength: 2048}
+        selector: {type: string, maxLength: 500}
+        text: {type: string, maxLength: 1000}
+        pixels: {type: integer, minimum: -900, maximum: 900, default: 600}
     RecipeAction:
       type: object
       required:

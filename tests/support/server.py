@@ -10,6 +10,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import uvicorn
 from sqlalchemy import select
+from fastapi import Request
+from fastapi.responses import HTMLResponse, Response
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 from daleel.app import make_app
@@ -28,6 +30,9 @@ class Source(BaseHTTPRequestHandler):
             time.sleep(10)  # Synthetic slow source; browser tests use observable assertions, never sleeps.
         if self.path == "/robots.txt":
             body = "User-agent: *\nAllow: /\nDisallow: /blocked\n"
+        elif self.path == "/interactive":
+            job = {"@type": "JobPosting", "title": "AI Engineer", "description": "Build reliable AI models in Cairo.", "hiringOrganization": {"name": "Daleel Test Labs"}}
+            body = '<html><title>AI Engineer</title><body><h1>AI Engineer</h1><p>Daleel Test Labs</p><button id="expand" onclick="document.getElementById(\'details\').hidden=false">Show opportunity details</button><section id="details" hidden>Build reliable AI models in Cairo.</section><script type="application/ld+json">' + json.dumps(job) + '</script></body></html>'
         elif self.path.startswith("/blocked"):
             body = "This source must not be fetched."
         elif self.path == "/arabic":
@@ -56,11 +61,47 @@ if __name__ == "__main__":
             dev_token=os.environ["DALEEL_E2E_TOKEN"], dev_email="e2e@daleel.local",
             operator_emails="e2e@daleel.local", database_url=f"sqlite:///{Path(directory) / 'db.sqlite'}",
             storage_root=Path(directory) / "artifacts", worker_mode="inline",
-            allow_test_hosts=["127.0.0.1"], host_delay_seconds=0,
+            allow_test_hosts=["127.0.0.1"], host_delay_seconds=0, browser_enabled=True,
             cors_origins=["http://127.0.0.1:5173"], frontend_url="http://127.0.0.1:5173",
             groq_api_key="", openrouter_api_key="", tavily_api_key="", google_trace_project="")
         try:
             app = make_app(settings)
+            viewer_events = []
+
+            @app.middleware('http')
+            async def viewer_policy(request, call_next):
+                response = await call_next(request)
+                if request.url.path == '/api/__e2e__/viewer':
+                    # Match the separate broker's policy rather than the API's strict app CSP.
+                    response.headers['Content-Security-Policy'] = "default-src 'self'; img-src 'self' blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'"
+                return response
+
+            @app.get('/api/__e2e__/viewer', response_class=HTMLResponse)
+            def synthetic_viewer():
+                from daleel.broker_viewer import VIEWER_HTML
+                return HTMLResponse(VIEWER_HTML, headers={'Content-Security-Policy': "default-src 'self'; img-src 'self' blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'", 'Cache-Control': 'no-store'})
+
+            @app.get('/api/__e2e__/viewer/screen')
+            def synthetic_screen():
+                return Response('<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="900"><rect width="1280" height="900" fill="white"/><text x="80" y="100" font-size="32">Synthetic research site</text></svg>', media_type='image/svg+xml')
+
+            @app.get('/api/__e2e__/viewer/status')
+            def synthetic_status():
+                return {'domain': 'research.example', 'authenticated': False, 'remainingSeconds': 1800}
+
+            @app.post('/api/__e2e__/viewer/control')
+            async def synthetic_control(request: Request):
+                event = await request.json()
+                viewer_events.append({k: v for k, v in event.items() if k != 'text'})
+                return {'ok': True}
+
+            @app.post('/api/__e2e__/viewer/close')
+            def synthetic_close():
+                return {'ok': True}
+
+            @app.get('/api/__e2e__/viewer-events')
+            def synthetic_events():
+                return viewer_events
 
             @app.get('/api/__e2e__/snapshot')
             def snapshot():

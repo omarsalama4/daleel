@@ -290,7 +290,7 @@ export class HttpApiClient implements ApiClient {
     return this.request<Recipe>(`/recipes/${recipeId}`);
   }
 
-  async repairRecipe(recipeId: string, patch: { sampleUrl: string; selector: string; changeSummary: string }): Promise<Recipe> {
+  async repairRecipe(recipeId: string, patch: { sampleUrl: string; selector: string; changeSummary: string; browserSteps?: import('../../types/api').BrowserStep[] }): Promise<Recipe> {
     return this.request<Recipe>(`/recipes/${recipeId}`, { method: 'PATCH', body: JSON.stringify(patch) });
   }
 
@@ -316,6 +316,10 @@ export class HttpApiClient implements ApiClient {
     return this.request<SiteSession>(`/sessions/connections/${connectionId}/finish`, {
       method: 'POST',
     });
+  }
+
+  async cancelSiteConnection(connectionId: string): Promise<void> {
+    await this.request<void>(`/sessions/connections/${connectionId}`, { method: 'DELETE' });
   }
 
   async updateSiteSession(sessionId: string, expiryMode: 'no_expiry' | 'date', expiresAt?: string): Promise<SiteSession> {
