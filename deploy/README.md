@@ -1,6 +1,6 @@
 # Daleel hosted beta deployment
 
-Google Cloud project `daleel-prod-20261006-c719` is linked to the approved billing account, with a private registry in `europe-west1`. Neon database, verified-email Auth, private object storage and pinned Secret Manager versions are provisioned. GitHub's restricted deployment identity is working; the first release is in progress. Model/search credentials, live account verification and the hosted browser broker remain release gates. See [PRODUCTION_READINESS.md](../PRODUCTION_READINESS.md) for observed evidence.
+Google Cloud project `daleel-prod-20261006-c719` is linked to the approved billing account, with a private registry in `europe-west1`. Neon database, verified-email Auth, private object storage and pinned Secret Manager versions are provisioned. Restricted GitHub deployment, real operator onboarding, hosted crawling and AI/search provider configuration have passed live checks. Authenticated domain adapters and the remaining verification gates are tracked in [PRODUCTION_READINESS.md](../PRODUCTION_READINESS.md).
 
 ## Accounts and projects
 
