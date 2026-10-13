@@ -60,3 +60,7 @@ Real third-party sign-in, email verification and MFA are human steps. Synthetic 
 - **101/101 backend tests passed** against disposable PostgreSQL; **18/18 frontend tests passed**. Production frontend build, backend lint, patch and YAML checks passed.
 - Mobile viewer screenshots were inspected; controls were simplified and the remote page made readable at actual size by default on small screens.
 - Real account/MFA challenges and arbitrary site compatibility remain outside synthetic coverage. No production password or verification code was entered by automation.
+
+### Release verification repair
+
+The first cloud release (`38471031953`) stopped before migration/service updates: Cloud Build's image verification used `wait_for_function` string evaluation, which Chromium rejected under the viewer's CSP without `unsafe-eval`. The application image built successfully. The check now polls the image's natural width through a Playwright locator assertion, preserving CSP. The repaired API/frontend/Chromium smoke script passed locally. Release retry results are recorded after completion.

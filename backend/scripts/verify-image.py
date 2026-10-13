@@ -3,7 +3,7 @@ import asyncio
 import os
 import time
 from fastapi.testclient import TestClient
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, expect
 from daleel.app import make_app
 from daleel.config import Settings
 
@@ -44,7 +44,9 @@ async def browser_check():
 
             await page.route("**/*", serve_viewer)
             await page.goto("https://broker.example.org/viewer/synthetic-image-check")
-            await page.wait_for_function("document.querySelector('#screen').naturalWidth > 0")
+            # Locator assertions poll in Playwright's utility world without string
+            # evaluation in the protected page. Keep unsafe-eval forbidden.
+            await expect(page.locator("#screen")).to_have_js_property("naturalWidth", 1280)
             assert await page.locator("#status").inner_text() == ""
         finally:
             await browser.close()
