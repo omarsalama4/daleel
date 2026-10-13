@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     frontend_dist: Path = Path("static")
     storage_mode: Literal["local", "s3"] = "local"
     storage_root: Path = Path("data/artifacts")
+    database_storage_cap_mb: int = 400
     s3_endpoint: str = ""
     s3_bucket: str = ""
     s3_region: str = "us-east-1"
@@ -84,6 +85,8 @@ class Settings(BaseSettings):
             raise ValueError("Development auth requires a local token of at least 24 characters")
         if min(self.max_active_runs_per_workspace, self.max_daily_runs_per_workspace, self.lease_seconds, self.worker_concurrency) < 1:
             raise ValueError("Run admission and worker settings must be positive")
+        if self.database_storage_cap_mb < 1:
+            raise ValueError("Database storage admission cap must be positive")
         if self.openrouter_model and not self.openrouter_model.endswith(":free"):
             raise ValueError("The beta OpenRouter route must use an explicit :free model")
         if self.ai_input_usd_per_million < 0 or self.ai_output_usd_per_million < 0:

@@ -66,6 +66,8 @@ export interface Settings {
     primary: 'groq';
     secondary: 'openrouter_free';
     paidRoutesEnabled: boolean;
+    primaryConfigured?: boolean;
+    secondaryConfigured?: boolean;
     status?: 'available' | 'degraded' | 'unavailable' | 'unknown';
   };
   aiCaps: AiCaps;

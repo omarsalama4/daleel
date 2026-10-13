@@ -67,6 +67,10 @@ def require_storage(db, wid, additional=0):
     if db.bind.dialect.name == "postgresql":
         from sqlalchemy import text
         db.execute(text("SELECT pg_advisory_xact_lock(7316452)"))
+        capacity = db.info.get("database_storage_cap_mb", 400) * 1_000_000
+        database_bytes = db.scalar(text("SELECT pg_database_size(current_database())"))
+        if database_bytes + additional > capacity:
+            raise Problem(409, "STORAGE_QUOTA", "Database capacity is nearly reached; delete data to continue")
         used = db.scalar(text("SELECT daleel_storage_bytes()"))
         if used + additional > 4_000_000_000:
             raise Problem(409, "STORAGE_QUOTA", "The beta evidence storage capacity is reached")

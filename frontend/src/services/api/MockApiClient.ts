@@ -94,6 +94,8 @@ export class MockApiClient implements ApiClient {
         primary: 'groq',
         secondary: 'openrouter_free',
         paidRoutesEnabled: false,
+        primaryConfigured: true,
+        secondaryConfigured: true,
         status: 'available',
       },
       aiCaps: {

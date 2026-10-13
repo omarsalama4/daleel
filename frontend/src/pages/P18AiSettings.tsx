@@ -3,15 +3,8 @@ import { NavLink } from 'react-router-dom';
 import { useApi } from '../services/api';
 import { useToast } from '../components/common/Toast';
 import type { Settings, Usage } from '../types/api';
-import {
-  Sparkles,
-  Shield,
-  AlertTriangle,
-  Server,
-  DollarSign,
-  Lock,
-  CheckCircle2,
-} from 'lucide-react';
+import { providerConfigurationLabel } from '../lib/providerStatus';
+import { Lock } from 'lucide-react';
 
 export const P18AiSettings: React.FC = () => {
   const api = useApi();
@@ -21,6 +14,8 @@ export const P18AiSettings: React.FC = () => {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
 
   // Editable settings
   const [authContentAllowed, setAuthContentAllowed] = useState(false);
@@ -29,20 +24,21 @@ export const P18AiSettings: React.FC = () => {
   useEffect(() => {
     async function loadData() {
       setLoading(true);
+      setLoadError(null);
       try {
         const [s, u] = await Promise.all([api.getSettings(), api.getUsage()]);
         setSettings(s);
         setUsage(u);
         setAuthContentAllowed(s.authenticatedContentAllowed);
         setMonthlyCap(s.aiCaps.monthlyUsd);
-      } catch (err) {
-        console.error('Failed to load AI settings', err);
+      } catch {
+        setLoadError('AI settings could not be loaded. Please try again.');
       } finally {
         setLoading(false);
       }
     }
     loadData();
-  }, [api]);
+  }, [api, retry]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +56,13 @@ export const P18AiSettings: React.FC = () => {
       setSaving(false);
     }
   };
+
+  if (loadError) {
+    return <div role="alert" className="p-5 bg-surface rounded border border-line space-y-3">
+      <p>{loadError}</p>
+      <button type="button" className="btn-secondary" onClick={() => setRetry(value => value + 1)}>Try again</button>
+    </div>;
+  }
 
   if (loading || !settings) {
     return (
@@ -139,6 +142,7 @@ export const P18AiSettings: React.FC = () => {
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input
                   type="checkbox"
+                  aria-label="Allow hosted AI processing of authenticated content"
                   checked={authContentAllowed}
                   onChange={(e) => setAuthContentAllowed(e.target.checked)}
                   className="sr-only peer"
@@ -164,14 +168,14 @@ export const P18AiSettings: React.FC = () => {
           <div className="space-y-3 pt-3 border-t border-line text-xs">
             <h3 className="text-sm font-semibold text-ink m-0">Platform Model Routing (Read-only)</h3>
             <p className="text-muted-ink">
-              Provider endpoints, API keys, and health checks are managed by the platform infrastructure. Users are never asked to supply third-party API keys.
+              Provider configuration is managed by the platform. Availability and quota are checked during each run.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="p-3 bg-canvas rounded border border-line space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-ink">Primary route</span>
-                  <span className="font-mono-tech text-deep-teal font-medium">Active</span>
+                  <span className="font-mono-tech text-muted-ink">{providerConfigurationLabel(settings.providers.primaryConfigured)}</span>
                 </div>
                 <div className="font-semibold text-ink capitalize font-mono-tech">
                   {settings.providers.primary} (Fast inference)
@@ -181,7 +185,7 @@ export const P18AiSettings: React.FC = () => {
               <div className="p-3 bg-canvas rounded border border-line space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-ink">Secondary route</span>
-                  <span className="font-mono-tech text-muted-ink">Standby</span>
+                  <span className="font-mono-tech text-muted-ink">{providerConfigurationLabel(settings.providers.secondaryConfigured)}</span>
                 </div>
                 <div className="font-semibold text-ink capitalize font-mono-tech">
                   {settings.providers.secondary.replace(/_/g, ' ')}

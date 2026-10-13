@@ -52,3 +52,19 @@ def test_deletion_reports_provider_retention_for_each_trace_exporter(tmp_path, s
     with db.session("test") as session:
         assert resource(session, "test", job_id, "deletion").data["tracePurgeState"] == "provider_limited"
     db.engine.dispose()
+
+
+@pytest.mark.parametrize("values,primary,secondary", [
+    ({}, False, False),
+    ({"groq_api_key": "test-key"}, False, False),
+    ({"groq_api_key": "test-key", "groq_model": "test-model"}, True, False),
+    ({"openrouter_api_key": "test-key", "openrouter_model": "test/model:free"}, False, True),
+])
+def test_provider_configuration_reports_each_route_without_keys(values, primary, secondary):
+    from daleel.config import Settings
+    from daleel.services import settings_payload
+    settings = Settings(_env_file=None, env="test", auth_mode="jwt", **values)
+    result = settings_payload(settings, SimpleNamespace(id="test", data={}))
+    assert result["providers"]["primaryConfigured"] is primary
+    assert result["providers"]["secondaryConfigured"] is secondary
+    assert "test-key" not in str(result)

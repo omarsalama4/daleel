@@ -48,6 +48,19 @@ def test_unscoped_runtime_cannot_read_tenant_rows(engine, tenants):
         assert not db.scalar(text("SELECT rolbypassrls OR rolsuper FROM pg_roles WHERE rolname=current_user"))
 
 
+def test_database_capacity_admission_works_for_non_owner(engine, tenants):
+    from sqlalchemy.orm import Session
+    from daleel.storage import require_storage
+    from daleel.errors import Problem
+    with engine.begin() as connection:
+        with Session(bind=connection, info={"database_storage_cap_mb": 1}) as db:
+            db.execute(text("SET LOCAL ROLE daleel_app"))
+            db.execute(text("SELECT set_config('daleel.workspace_id', :wid, true)"), {"wid": tenants[0]})
+            with pytest.raises(Problem) as exc:
+                require_storage(db, tenants[0], 100)
+            assert exc.value.code == "STORAGE_QUOTA"
+
+
 def test_workspace_read_write_isolation(engine, tenants):
     first, second = tenants
     with engine.begin() as db:

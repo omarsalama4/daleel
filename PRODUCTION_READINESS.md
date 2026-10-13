@@ -1,58 +1,48 @@
 # Daleel production readiness — 2026-10-13
 
-**Status: hosted application deployed; end-to-end production verification remains incomplete.**
+**Status: hosted beta deployed; full production verification is incomplete.**
 
-## Verified infrastructure
+Application: https://daleel-api-530191092817.europe-west1.run.app
 
-- Google Cloud project `daleel-prod-20261006-c719`, approved owner and billing account, private Artifact Registry and build source bucket. `.gcloudignore` excludes credentials, local data and environment files from uploaded sources.
-- Dedicated free Neon organization and PostgreSQL 17 project `bold-fog-96164252` in Frankfurt. Schema revision `0001`, checkpoint tables and non-owner runtime role are installed.
-- Live Neon isolation passed using two synthetic workspaces: all six tenant RLS policies enabled, cross-workspace reads/updates/deletes hidden, cross-workspace inserts rejected, transaction context reset. Fixtures were deleted.
-- Neon Auth requires email verification using OTP. Live Ed25519 JWKS retrieval passed; frontend supports verification and resend. Real owner sign-in, invitation claim and password reset still need verification.
-- Private Neon evidence bucket: application write/read/delete and anonymous access denial passed. S3 signing region is explicitly configured. Credentials are project/branch scoped and protected locally; separate runtime/migration cloud secrets are pinned to version 1.
-- Point-in-time recovery passed: an isolated branch recovered an earlier synthetic value and schema while main retained its later value. The temporary branch and canary were deleted. Free-plan recovery window is six hours; live data retention remains until manual deletion. No broad backup guarantee is inferred from this exercise.
-- GitHub beta environment accepts main only. Google federation pins repository/owner IDs, exact main ref, deploy workflow and beta subject. No service account JSON keys are used.
-- Native OTLP trace export and Cloud Trace readback passed with a synthetic span. Export-time privacy tests cover late-added URLs, prompts, authorization headers, exceptions, resource secrets and client trace state. API and worker activation uses runtime secret version 2 in the next release.
-- Cloud Run error alert created for Daleel API, migration, worker and recovery jobs, with the operator's email channel. Delivery has not been tested.
-- Project-only hosting warning budget: **$10 USD/month**, thresholds 50%, 90%, 100%. This alerts; it does not cap spending. Separate AI caps remain $0.25/run and $5/workspace/month.
+## Verified hosted behavior
 
-## Verified source
+- [Release 38380430671](https://github.com/omarsalama4/daleel/actions/runs/38380430671) succeeded at `d403185`. API, migration, worker, recovery and isolated browser broker are deployed through the restricted GitHub beta workflow.
+- Actual operator registration, verified-email Neon identity and invitation claim completed. The signed-in workspace and operator navigation were inspected.
+- HTTPS health/readiness and the real frontend bundle passed. Protected account/run endpoints reject unauthenticated requests; unknown API routes remain 404.
+- Live Neon runtime role has no administrative/RLS-bypass privileges. Six tenant policies, cross-workspace read/write denial and transaction context reset passed with synthetic fixtures removed.
+- Point-in-time restore recovered an earlier synthetic value in an isolated branch while main retained the later value. Test branch and records were deleted. Free-plan recovery history is six hours, subject to provider quotas; live records remain until manual deletion.
+- Real scheduler recovery dispatched a bounded one-page HTTPS crawl. After correcting SNI from bytes to text, the hosted worker fetched the page and saved one finding with source and supporting evidence. The run correctly reported partial coverage under its one-page frontier limit.
+- A real export was written to private Neon storage and downloaded over the hosted capability endpoint. Deletion immediately revoked the capability, then removed the private object, records and LangGraph checkpoint. Exact synthetic workspace and manifests were removed.
+- Runtime-to-broker authentication passed using an audience-bound, short-lived Google-signed token and the exact runtime service account. No permanent broker credential is shared. The old static broker secret version is disabled. Missing service authentication, unsupported domains and invalid viewer capabilities fail closed.
+- Synthetic OTLP export and Cloud Trace readback passed. Export filtering removes URLs, prompts, headers, exception text, events, links and client trace state. Readback of the actual crawl span remains pending.
 
-[CI run 38317885313](https://github.com/omarsalama4/daleel/actions/runs/38317885313) passed backend, frontend and container jobs at commit `a49b7b7`:
+## Infrastructure and controls
 
-| Check | Result |
-|---|---|
-| Backend | 51 checks including 10 disposable PostgreSQL checks |
-| Frontend | 15 checks |
-| Python lint, TypeScript and production bundle | Passed |
-| Pinned backend and frontend dependency audits | Passed |
-| Container and Chromium smoke | Passed |
-| Live Neon storage and runtime startup | Passed |
-| Live workspace isolation and recovery | Passed with synthetic fixtures removed |
+- Dedicated GCP project `daleel-prod-20261006-c719`, Europe region, approved billing account, private image/source repositories and pinned configuration secrets. Federation pins exact repository/owner IDs, main branch, deploy workflow and beta environment.
+- Dedicated free Neon PostgreSQL 17 project `bold-fog-96164252` in Frankfurt; schema revision `0001`, checkpoint bootstrap, verified-email Auth and private evidence storage are provisioned.
+- Runtime secret version 3; broker configuration version 2; migration secret version 1. Broker has its own identity and no database, model or evidence-storage permissions.
+- Managed API/broker access logs are excluded to avoid retaining capability/reset URLs. Application errors and audit records remain available.
+- API availability checks, multi-location/error alerts and native metrics dashboard are configured. Delivery of alert email remains unverified.
+- Hosting warning budget is $10 USD/month for Daleel only, at 50%, 90% and 100%. It is an alert, not a hard cap. AI caps remain $0.25/run and $5/workspace/month.
+- Recovery now polls every fifteen minutes to permit free Neon compute to suspend; normal API dispatch remains immediate. Workflow default is updated in the prepared release. A five-minute recovery poll would risk keeping compute continuously active.
 
-## Release execution
+## Provider setup
 
-[Deployment run 38317886520](https://github.com/omarsalama4/daleel/actions/runs/38317886520) initially exposed two permission/configuration errors: GitHub's subject includes immutable IDs, and source submission needs bucket metadata access. Both were corrected with repository-specific federation and a role on the existing private bucket. The image build passed. Migration and checkpoint bootstrap also passed in Cloud Run. Release `38320098367` then exposed first-service traffic handling and a mounted secret directory hiding `/app`. The workflow now keeps the first usable revision private, authenticates smoke checks with the canonical service audience, and mounts configuration under `/var/secrets/daleel/` using `DALEEL_CONFIG_FILE`. S3 storage no longer requires a local artifact directory. The corrected release is pending execution.
+The user approved mefoomar4@gmail.com and free Groq/OpenRouter/Tavily keys, and completed provider sign-in. A dedicated Groq Daleel project is created. Tavily's Daleel key is saved in ignored ACL-protected configuration with a 1,000-credit monthly limit and pay-as-you-go disabled. Groq/OpenRouter key creation, model selection, cloud configuration and live AI/search tests remain in progress. No provider credentials are committed or printed.
 
-The release runs migration/bootstrap, deploys API/worker/recovery jobs, verifies candidate health and authentication boundaries, installs scheduled recovery, and promotes traffic only after smoke checks.
+## Prepared release changes
 
-## Remaining release gates
+- Provider cards report configuration per route instead of hardcoded Active/Standby labels. Settings load failures have an explicit retry state; AI consent is labelled for accessibility.
+- Failed authentication initialization clears account/cache state; hook dependencies include the actual adapter and query client.
+- PostgreSQL admission checks database size below a configurable 400 MB default, leaving headroom below the free provider allowance. Existing workspace/artifact admission controls remain. Provider limits and metadata overhead still require monitoring.
+- Local verification: **57 backend passed, 11 disposable PostgreSQL checks skipped locally; 18 frontend passed**. Python lint, TypeScript and production bundle passed. The new PostgreSQL capacity test must run in CI before release.
 
-1. Finish deployment and verify hosted API, static UI, worker dispatch, interruption/recovery and storage cleanup.
-2. Create/configure free Groq/OpenRouter and search credentials; verify real provider outputs, grounding, quota failures and cost reservations. Approval to use the specific Google account with these providers is pending after automatic review rejected the initial sign-in.
-3. Verify actual operator invitation, verified-email JWT, sign-in and password reset. Human ownership challenges must be completed by the account owner.
-4. Deploy the separate browser broker with minimal secrets/permissions, expiry and interruption handling; configure and verify domain-specific authenticated selectors. No domain adapters are pre-approved or enabled. The existing broker uses in-memory connections and requires one instance; multi-instance routing remains unimplemented.
-5. Verify monitoring alert delivery and add deployed uptime coverage. Native trace ingestion/readback passed; verify the deployed runtime exporter after version 2 is activated.
-6. Run hosted extraction-quality and multilingual evaluations, authenticated recipe replay, deletion/export recovery and resource-limit checks.
+## Remaining gates
 
-Detailed provider records and verification reports are in an ignored, ACL-protected local directory. No credentials or personal page content are committed. Passing source checks and individual provider tests do not establish complete production readiness.
+1. Finish free AI/search provider setup; verify structured outputs, multilingual grounding, quota handling and cost reconciliation through hosted runs.
+2. Deploy the prepared UI/storage-admission release and verify the live result.
+3. Configure and verify actual domain-specific browser adapters, human login/MFA, authenticated extraction and reusable recipe replay. No adapters are enabled yet. Live broker viewers are ephemeral across restarts; multi-instance routing is not implemented.
+4. Verify actual worker interruption/recovery, alert delivery, password reset and real crawl trace readback.
+5. Run extraction-quality evaluations for the AI Engineer opportunity template, including detail-page enrichment and duplicate opportunities.
 
-Latest local regression results: **46 passed, 10 PostgreSQL checks skipped locally**; Python lint and release YAML/Bash syntax passed. The five new checks cover tracing privacy/authentication and mounted-secret/S3 behavior. Disposable PostgreSQL checks continue to run in GitHub CI.
-
-## Hosted rollout and crawler verification
-
-- Release [38321342628](https://github.com/omarsalama4/daleel/actions/runs/38321342628) passed. API revision `daleel-api-00002-cif` serves 100% of traffic at https://daleel-api-530191092817.europe-west1.run.app . `/health`, `/ready` and the real sign-in bundle passed; protected account/run endpoints return 401 without credentials and unknown API routes return 404.
-- Recovery is enabled every five minutes. A synthetic queued run was dispatched through the real scheduler/runtime identity. Its HTTPS page failed because the SNI extension used bytes where the installed transport requires text. Corrected this without weakening DNS pinning or certificate validation; transport regression and a real local HTTPS fetch passed. Hosted repeat is pending the corrected image.
-- Isolated browser broker is deployed after explicit public-exposure approval. Live service authentication, unsupported-domain denial and invalid-viewer expiry checks passed. No domain adapters are enabled.
-- Workload identity integration replaces static broker credential sharing, which automatic review rejected. New pinned configuration versions are runtime 3 and broker 2. Real workload-token verification remains pending deployment.
-- Five-minute HTTPS liveness checks, a multi-location failure alert, an error alert, native metrics dashboard and the project-only $10 hosting warning are configured. Routine probes use `/health`; `/ready` is checked during deployment and manually, avoiding continuous database queries that would prevent free Neon compute from suspending. Alert delivery has not been tested.
-- Latest local suite: **53 passed, 10 PostgreSQL checks skipped locally**. New source CI and hosted crawler verification remain pending. Provider sign-in/account challenges, AI/search credentials, domain adapters and authenticated recipe evaluation remain release gates.
+Detailed reports and credentials remain in an ignored, ACL-protected local directory. Individual passing checks do not establish complete production readiness.

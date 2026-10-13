@@ -48,10 +48,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const acc = await activeAdapter.getCurrentAccount();
         if (mounted) {
           queryClient.clear();
-      setAccount(acc);
+          setAccount(acc);
         }
-      } catch (err) {
-        console.error('Failed to initialize auth', err);
+      } catch {
+        if (mounted) {
+          queryClient.clear();
+          setAccount(null);
+        }
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -62,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       mounted = false;
     };
-  }, [adapterType]);
+  }, [activeAdapter, queryClient]);
 
   const signIn = async (email: string, password: string) => {
     setIsLoading(true);

@@ -140,9 +140,9 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $CANDIDATE_TOKEN" "$CANDIDATE/api/v1/me")" = 401
           JOB_URI="https://run.googleapis.com/v2/projects/$PROJECT/locations/$REGION/jobs/daleel-recovery:run"
           if gcloud scheduler jobs describe daleel-recovery --project="$PROJECT" --location="$REGION" >/dev/null 2>&1; then
-            gcloud scheduler jobs update http daleel-recovery --project="$PROJECT" --location="$REGION" --schedule='*/5 * * * *' --uri="$JOB_URI" --http-method=POST --oauth-service-account-email="$SCHEDULER_ACCOUNT"
+            gcloud scheduler jobs update http daleel-recovery --project="$PROJECT" --location="$REGION" --schedule='*/15 * * * *' --uri="$JOB_URI" --http-method=POST --oauth-service-account-email="$SCHEDULER_ACCOUNT"
           else
-            gcloud scheduler jobs create http daleel-recovery --project="$PROJECT" --location="$REGION" --schedule='*/5 * * * *' --uri="$JOB_URI" --http-method=POST --oauth-service-account-email="$SCHEDULER_ACCOUNT"
+            gcloud scheduler jobs create http daleel-recovery --project="$PROJECT" --location="$REGION" --schedule='*/15 * * * *' --uri="$JOB_URI" --http-method=POST --oauth-service-account-email="$SCHEDULER_ACCOUNT"
           fi
           gcloud run services add-iam-policy-binding daleel-api --project="$PROJECT" --region="$REGION" --member=allUsers --role=roles/run.invoker
           REVISION=$(gcloud run services describe daleel-api --project="$PROJECT" --region="$REGION" --format='value(status.latestCreatedRevisionName)')

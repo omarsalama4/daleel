@@ -129,7 +129,8 @@ class Database:
             def sqlite_config(connection, _):
                 connection.execute("PRAGMA foreign_keys=ON")
                 connection.execute("PRAGMA journal_mode=WAL")
-        self.Session = sessionmaker(self.engine, expire_on_commit=False)
+        self.Session = sessionmaker(self.engine, expire_on_commit=False,
+                                    info={"database_storage_cap_mb": settings.database_storage_cap_mb})
 
     def init(self):
         if self.settings.env != "production":

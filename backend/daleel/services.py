@@ -23,6 +23,8 @@ def settings_payload(settings, workspace, is_operator=False):
             "limits": Limits().model_dump(), "ceilings": Limits().model_dump(),
             "authenticatedContentAllowed": workspace.data.get("authenticatedContentAllowed", False),
             "providers": {"primary": "groq", "secondary": "openrouter_free", "paidRoutesEnabled": False,
+                          "primaryConfigured": bool(settings.groq_api_key and settings.groq_model),
+                          "secondaryConfigured": bool(settings.openrouter_api_key and settings.openrouter_model),
                           "status": "available" if ((settings.groq_api_key and settings.groq_model) or (settings.openrouter_api_key and settings.openrouter_model)) else "unavailable"},
             "aiCaps": {"perRunUsd": .25, "monthlyUsd": workspace.data.get("monthlyAiUsd", 5)}}
 
