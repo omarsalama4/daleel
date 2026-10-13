@@ -582,8 +582,8 @@ def make_app(settings=None):
                                   "plan": {"fields": data["fields"]}}
                 checked = verify_result(deterministic_extract(page, validation_run["plan"]["fields"], data["task"]),
                                         page, validation_run["plan"]["fields"], validation_run)
-                if checked["evidenceCount"] == 0:
-                    raise Problem(409, "RECIPE_DRIFT", "Replay did not yield any evidence-supported field")
+                if checked["status"] != "relevant":
+                    raise Problem(409, "RECIPE_DRIFT", "Replay must support every required field and meet the query relevance setting")
                 data["status"] = "active"
                 data["validation"] = {**data["validation"], "outcome": "passed", "lastValidatedAt": now(),
                     "driftDetected": False, "stepResults": [{"stepOrder": 1, "success": True}, {"stepOrder": 2, "success": True}]}

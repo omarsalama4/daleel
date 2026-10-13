@@ -424,6 +424,31 @@ def test_recipe_repair_requires_fresh_approval(client, app, monkeypatch):
     assert replay.json()["validation"]["driftDetected"] is True
 
 
+@pytest.mark.parametrize("query,fields", [
+    ("Find AI Engineer", [{"key": "title", "required": True}, {"key": "employer", "required": True}]),
+    ("Find scholarship funding", [{"key": "title", "required": True}]),
+])
+def test_recipe_replay_rejects_missing_required_fields_or_irrelevant_source(client, app, monkeypatch, query, fields):
+    from daleel.db import put
+    wid = client.get("/api/v1/me").json()["workspace"]["id"]
+    with app.state.database.session(wid) as db:
+        recipe = put(db, wid, "recipe", {"version": 1, "site": "example.org", "status": "approved",
+            "actions": [{"order": 1, "type": "navigate", "target": "https://example.org/job"},
+                        {"order": 2, "type": "extract", "target": "body"}],
+            "validation": {"outcome": "pending"}, "sourceRunId": uid(), "fields": fields, "task": query})
+        rid = recipe.id
+
+    async def fetch(self, *args, **kwargs):
+        return {"url": "https://example.org/job", "title": "AI Engineer", "bytes": 80, "status": 200,
+                "html": "<html><title>AI Engineer</title><body>AI Engineer opportunity</body></html>"}
+
+    monkeypatch.setattr("daleel.app.Fetcher.fetch", fetch)
+    result = client.post(f"/api/v1/recipes/{rid}/actions", json={"action": "replay"})
+    assert result.status_code == 200
+    assert result.json()["status"] == "needs_review"
+    assert result.json()["validation"]["outcome"] == "failed"
+
+
 def test_authenticated_recipe_replay_uses_only_selected_workspace_session(client, app, monkeypatch):
     import json
     from cryptography.fernet import Fernet

@@ -6,6 +6,8 @@ from fastapi.testclient import TestClient
 
 
 def test_viewer_policy_allows_generated_blob_images(monkeypatch):
+    monkeypatch.setenv("DALEEL_BROKER_PUBLIC_URL", "https://broker.example.org")
+    monkeypatch.setenv("DALEEL_SESSION_BROKER_AUTH_MODE", "token")
     monkeypatch.setenv("DALEEL_SESSION_BROKER_TOKEN", "synthetic-test-token-" + "x" * 32)
     monkeypatch.delenv("DALEEL_CONFIG_FILE", raising=False)
     sys.modules.pop("daleel.broker", None)
