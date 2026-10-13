@@ -87,7 +87,7 @@ async def headers(request, call_next):
     response.headers['Cache-Control'] = 'no-store'
     response.headers['Referrer-Policy'] = 'no-referrer'
     response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['Content-Security-Policy'] = "default-src 'self'; img-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'"
+    response.headers['Content-Security-Policy'] = "default-src 'self'; img-src 'self' blob:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'"
     return response
 
 
@@ -181,7 +181,7 @@ async def view(capability: str):
     return '''<!doctype html><html><meta name="viewport" content="width=device-width"><title>Daleel authorized sign-in</title>
     <style>body{font:16px system-ui;background:#f7f7f7;margin:20px}img{max-width:100%;border:1px solid #ddd}button,input{padding:10px;margin:5px}p{max-width:75ch}</style>
     <h1>Authorized site sign-in</h1><p>Click the remote page, then type into its focused field using the control below. Complete MFA personally. Return to Daleel and choose Finish connection.</p>
-    <img id="screen" alt="Isolated browser viewport" width="1280" height="900">
+    <img id="screen" alt="Isolated browser viewport" width="1280" height="900" onerror="document.getElementById('status').textContent='Browser image could not load. Refresh this page or start a new connection in Daleel.'">
     <form id="typing"><input id="text" type="password" autocomplete="off" placeholder="Type into the focused remote field"><button>Send text</button></form>
     <button onclick="control({action:'key',text:'Tab'})">Tab</button><button onclick="control({action:'key',text:'Enter'})">Enter</button>
     <button onclick="control({action:'key',text:'Backspace'})">Backspace</button>
