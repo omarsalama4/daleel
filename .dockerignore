@@ -1,11 +1,14 @@
 **/.venv
 **/node_modules
-**/.env
-**/.env.local
+**/.env*
+**/*.local
 **/__pycache__
 **/.pytest_cache
 **/data
 .git
+.agents
+.codex
+.aws
 frontend/dist
 *.docx
 *.png

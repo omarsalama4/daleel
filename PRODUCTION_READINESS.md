@@ -6,7 +6,7 @@ Application: https://daleel-api-530191092817.europe-west1.run.app
 
 ## Verified hosted behavior
 
-- [Release 38385631304](https://github.com/omarsalama4/daleel/actions/runs/38385631304) succeeded at `51fee30`. API, migration, worker, recovery and isolated browser broker are deployed through the restricted GitHub beta workflow. Provider configuration was subsequently rolled out as runtime secret version 4, API revision `daleel-api-00006-xit`.
+- [Release 38390007300](https://github.com/omarsalama4/daleel/actions/runs/38390007300) succeeded at `3931f29`, including the literal-evidence extraction correction. API, migration, worker, recovery and isolated browser broker are deployed through the restricted GitHub beta workflow. Runtime secret version 4 configures the approved AI/search providers.
 - Actual operator registration, verified-email Neon identity and invitation claim completed. The signed-in workspace and operator navigation were inspected.
 - HTTPS health/readiness and the real frontend bundle passed. Protected account/run endpoints reject unauthenticated requests; unknown API routes remain 404.
 - Live Neon runtime role has no administrative/RLS-bypass privileges. Six tenant policies, cross-workspace read/write denial and transaction context reset passed with synthetic fixtures removed.
@@ -15,14 +15,18 @@ Application: https://daleel-api-530191092817.europe-west1.run.app
 - A real export was written to private Neon storage and downloaded over the hosted capability endpoint. Deletion immediately revoked the capability, then removed the private object, records and LangGraph checkpoint. Exact synthetic workspace and manifests were removed.
 - Runtime-to-broker authentication passed using an audience-bound, short-lived Google-signed token and the exact runtime service account. No permanent broker credential is shared. The old static broker secret version is disabled. Missing service authentication, unsupported domains and invalid viewer capabilities fail closed.
 - Synthetic OTLP export and Cloud Trace readback passed. Actual hosted crawl and model-extraction spans were also read back, with run IDs, provider and service metadata only. Export filtering removes URLs, prompts, headers, exception text, events, links and client trace state. Trace list responses require pagination even when fewer entries than the requested page size are returned.
+- A real worker execution was deliberately cancelled in a separate synthetic workspace. Recovery detected its expired lease, re-dispatched it, retried the unfinished task and reached a terminal state. The verification workspace, runs and checkpoints were subsequently removed with exact identity guards.
+- The deployed extraction fix returned five evidence-supported fields from a current job detail page: title, employer, location, description and skills. Accounted AI usage was $0.008873 with no unresolved reservation. A one-page limit correctly produced partial coverage.
+- Live-provider evaluations with synthetic English, Arabic and French opportunity content passed literal field grounding. These checks do not establish equal quality for every language or site.
+- The signed-in production AI settings show both routes configured, private-content AI processing off, commercial fallback disabled and the $5 monthly cap.
 
 ## Infrastructure and controls
 
 - Dedicated GCP project `daleel-prod-20261006-c719`, Europe region, approved billing account, private image/source repositories and pinned configuration secrets. Federation pins exact repository/owner IDs, main branch, deploy workflow and beta environment.
 - Dedicated free Neon PostgreSQL 17 project `bold-fog-96164252` in Frankfurt; schema revision `0001`, checkpoint bootstrap, verified-email Auth and private evidence storage are provisioned.
-- Runtime secret version 4; broker configuration version 2; migration secret version 1. Broker has its own identity and no database, model or evidence-storage permissions.
+- Runtime secret version 4; broker configuration version 3; migration secret version 1. Broker has its own identity and no database, model or evidence-storage permissions. The first configured adapter is GitHub, using an observed signed-in navigation control and restricted login asset hosts; end-to-end human login remains pending.
 - Managed API/broker access logs are excluded to avoid retaining capability/reset URLs. Application errors and audit records remain available.
-- API availability checks, multi-location/error alerts and native metrics dashboard are configured. Delivery of alert email remains unverified.
+- API availability checks, multi-location/error alerts and native metrics dashboard are configured. An existing Daleel error alert was visible in the operator's Gmail browser title. One explicitly approved synthetic alert event was submitted on 2026-10-13; receipt of that test remains to be confirmed.
 - Hosting warning budget is $10 USD/month for Daleel only, at 50%, 90% and 100%. It is an alert, not a hard cap. AI caps remain $0.25/run and $5/workspace/month.
 - Recovery polls every fifteen minutes to permit free Neon compute to suspend; normal API dispatch remains immediate. The deployed schedule and workflow default were verified. A five-minute recovery poll would risk keeping compute continuously active.
 
@@ -34,19 +38,21 @@ The approved Groq/OpenRouter/Tavily keys are configured in the designated runtim
 - OpenRouter: explicit `apodex/apodex-1.1-mini:free`, key paid-credit limit $0, free-tier status verified. Structured output passed with `data_collection=deny` and provider fallbacks disabled. Other free endpoints returned upstream 429 or no privacy-compatible endpoint; free availability is not guaranteed.
 - Tavily: dedicated Daleel key, 1,000-credit monthly limit and pay-as-you-go disabled. Live discovery passed locally and in the hosted worker.
 - A bounded hosted query performed search and three model extractions, respected robots policy and rejected unrelated marketing pages. Ledger charges settled without uncertain reservations. It reported partial frontier coverage, not successful job discovery.
-- Current job detail pages produced supported title, employer and location. Description grounding exposed an ambiguous prompt; the prepared fix explicitly requires contiguous verbatim values/excerpts. A live retest returned a supported description paragraph. Hosted verification of the revised prompt remains pending.
+- Current job detail pages produced supported title, employer, location, description and skills after the literal-extraction prompt correction. Full hosted evidence and reconciled test usage were checked; all synthetic cloud fixtures were removed.
 
 ## Prepared release changes
 
 - Provider cards, authentication initialization cleanup and PostgreSQL 400 MB admission guard were released at `51fee30`. CI passed including the disposable PostgreSQL checks; local frontend verification passed 18 tests and the production build.
-- Prepared extraction prompt clarification and regression test: **58 backend passed, 11 disposable PostgreSQL checks skipped locally**; lint passed. This change still needs CI, deployment and a fresh hosted detail extraction.
+- Extraction prompt correction was deployed and verified. The subsequent viewer image fix was initially blocked by a CI test lacking a production HTTPS broker URL; this is corrected at `30fd6e5`.
+- Recipe replay now fails review when required fields are unsupported or the query relevance setting is unmet. **61 backend passed, 11 disposable PostgreSQL checks skipped locally; 18 frontend tests and production build passed**. CI for `30fd6e5` passed with the PostgreSQL checks; deployment is in progress.
+- A Chromium container check now loads the real viewer HTML/CSP and verifies a generated screenshot appears. Container build exclusions now cover all environment-file variants and local agent/cloud configuration directories. These added build checks await CI.
 
 ## Remaining gates
 
-1. Verify the prepared extraction fix in a fresh hosted run, multilingual field grounding, fallback/quota behavior and final cost reconciliation. Provider setup is complete; free capacity is variable.
-2. Inspect the live signed-in provider settings and verify opportunity detail enrichment, duplicates and reusable recipe replay.
-3. Configure and verify actual domain-specific browser adapters, human login/MFA, authenticated extraction and reusable recipe replay. No adapters are enabled yet. Live broker viewers are ephemeral across restarts; multi-instance routing is not implemented.
-4. Finish the active synthetic worker interruption/recovery check; verify alert delivery and password reset. Actual crawl trace readback passed.
-5. Run extraction-quality evaluations for the AI Engineer opportunity template, including detail-page enrichment and duplicate opportunities.
+1. Complete the corrected broker viewer deployment and verify its image in the live browser. GitHub human login/MFA, authenticated extraction and session revocation require an operator-completed login. The Computer Use skill prohibits automating authentication.
+2. Verify real password-reset email, completion and sign-in; confirm receipt of the single approved monitoring test alert.
+3. Validate strict recipe replay after deployment, including complete required fields and drift. Prior preview/approval/replay passed under the older permissive success check; that alone does not establish complete extraction.
+4. Extend opportunity quality evaluation to discovery-to-detail enrichment, duplicate opportunities and representative sites. Current live detail extraction and multilingual grounding checks are bounded evidence, not a broad quality benchmark.
+5. Free provider capacity has no guaranteed availability. Neon recovery history is six hours subject to quotas. Broker connections are ephemeral across revisions/restarts, with max one instance; users must reconnect after interruption. Wider production scale and longer recovery guarantees need separately tested infrastructure and a chosen service-level target.
 
 Detailed reports and credentials remain in an ignored, ACL-protected local directory. Individual passing checks do not establish complete production readiness.
