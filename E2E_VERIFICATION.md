@@ -10,6 +10,8 @@
 | Production frontend build | Passed |
 | Backend lint and patch whitespace | Passed |
 | Root npm and pinned Python dependency audits | No known vulnerabilities |
+| GitHub Browser E2E | Passed on commit `6813124` |
+| GitHub Build: frontend, backend and production container verification | All passed on commit `6813124` |
 | ChatGPT agent-assisted research | **Blocked by provider quota**, both GPT-6-Luna and GPT-6.1-Sol |
 
 Final browser run: `01a13686-89b2-70cd-bb8c-4e25269e34fb`. Duration 4m23s. All 25 cases passed every repetition. The initial development-module repetition run had 71/72 passes and one Windows `ERR_NO_BUFFER_SPACE` failure; the bundled harness subsequently passed 72/72, then 75/75 after adding the decimal-budget case. Initial failures were investigated, not suppressed with retries.
@@ -33,7 +35,7 @@ The test harness also gained backend readiness sequencing and a separate ignored
 
 ## Release and remaining verification
 
-Browser checks run on pushes and PRs and gate `Deploy beta` before cloud changes. Repository CI and production rollout results must be checked separately; these local results do not claim that a new release has deployed.
+Browser checks run on pushes and PRs and gate `Deploy beta` before cloud changes. [Browser E2E](https://github.com/omarsalama4/daleel/actions/runs/38448726791) and [Build](https://github.com/omarsalama4/daleel/actions/runs/38448726572) both passed for `6813124`. Build verified frontend, backend and the production container. These fixes have been pushed; this test-setup task did not trigger a production rollout.
 
 The ChatGPT subscription login was completed, but both available model attempts returned `MODEL_PROVIDER_FAILED: The usage limit has been reached`. The agent test remains configured and fails visibly until quota becomes available. Rerun `npx e2e run --tag agent --trace` after reset; its model-based UI judgment has not passed.
 
