@@ -86,3 +86,5 @@ Hosted checks were read-only and did not enter credentials or trigger paid resea
 - The owner confirmed real password reset/sign-in and receipt of the approved monitoring test alert. Five recent scheduled recovery executions succeeded.
 
 CI, release and hosted checks for this change are recorded below when complete. Real third-party authenticated extraction/revocation and representative-site capacity/quality remain separate certification checks; this release does not claim universal site compatibility or a production availability SLA.
+
+Final resource review added bounded Chromium admission to prevent overlapping launches exhausting API memory. Busy admission preserves approved recipes and releases capacity after failure. The final backend/PostgreSQL suite, including model override/preflight and browser capacity regression checks, passed **120/120** tests.

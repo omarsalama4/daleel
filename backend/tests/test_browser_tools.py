@@ -99,6 +99,20 @@ def test_recipe_requires_stable_targets_and_rejects_unknown_actions():
 
 
 @pytest.mark.asyncio
+async def test_browser_admission_is_bounded_and_released_after_failure():
+    async with browser_tools(Transport(), ['research.example']):
+        with pytest.raises(Problem) as error:
+            async with browser_tools(Transport(), ['research.example'], admission_seconds=.01):
+                pytest.fail('Second Chromium launch was admitted')
+        assert error.value.code == 'BROWSER_CAPACITY' and error.value.retryable
+    with pytest.raises(RuntimeError):
+        async with browser_tools(Transport(), ['research.example']):
+            raise RuntimeError('Synthetic failure')
+    async with browser_tools(Transport(), ['research.example']) as tools:
+        assert (await tools.execute({'action': 'navigate', 'url': 'https://research.example/'}))['title']
+
+
+@pytest.mark.asyncio
 async def test_planner_adapter_records_replayable_steps_and_rejects_reference_spoofing():
     async with browser_tools(Transport(), ['research.example'], click_selectors=['#expand']) as tools:
         decisions = iter([{'action': 'click', 'selector': '#expand'}, {'action': 'wait', 'selector': '#details'}, None])

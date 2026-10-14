@@ -599,6 +599,8 @@ def make_app(settings=None):
                 data["validation"] = {**data["validation"], "outcome": "passed", "lastValidatedAt": now(),
                     "driftDetected": False, "stepResults": [{"stepOrder": 1, "success": True}, {"stepOrder": 2, "success": True}]}
             except (Problem, httpx.HTTPError) as exc:
+                if isinstance(exc, Problem) and exc.code == "BROWSER_CAPACITY":
+                    raise
                 data["status"] = "needs_review"
                 data["validation"] = {**data["validation"], "outcome": "failed", "lastValidatedAt": now(),
                     "driftDetected": True, "driftReason": exc.detail if isinstance(exc, Problem) else "Source unavailable"}

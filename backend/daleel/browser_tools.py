@@ -1,6 +1,7 @@
 """Bounded read-only browser tools. Human authentication is a separate service."""
 import asyncio
 import time
+from weakref import WeakKeyDictionary
 from contextlib import asynccontextmanager
 from typing import Literal
 from playwright.async_api import async_playwright, TimeoutError as BrowserTimeout
@@ -11,6 +12,7 @@ from .errors import Problem
 from .network import canonical, hostname
 
 tracer = trace.get_tracer("daleel.browser")
+_browser_slots = WeakKeyDictionary()
 
 
 class BrowserAction(BaseModel):
@@ -259,7 +261,25 @@ class BrowserToolkit:
 
 
 @asynccontextmanager
-async def browser_tools(fetcher, domains, *, cookies=None, storage_state=None, **limits):
+async def browser_tools(fetcher, domains, *, cookies=None, storage_state=None, admission_seconds=5, **limits):
+    # Each API instance has 512 MB: overlapping Chromium launches can exhaust it.
+    # Loop-local admission also keeps isolated test event loops independent.
+    loop = asyncio.get_running_loop()
+    slot = _browser_slots.setdefault(loop, asyncio.Semaphore(1))
+    try:
+        async with asyncio.timeout(admission_seconds):
+            await slot.acquire()
+    except TimeoutError:
+        raise Problem(503, "BROWSER_CAPACITY", "Browser is busy; retry shortly", True) from None
+    try:
+        async with _browser_context(fetcher, domains, cookies=cookies, storage_state=storage_state, **limits) as tools:
+            yield tools
+    finally:
+        slot.release()
+
+
+@asynccontextmanager
+async def _browser_context(fetcher, domains, *, cookies=None, storage_state=None, **limits):
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=True)
         try:
