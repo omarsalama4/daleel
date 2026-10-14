@@ -74,3 +74,15 @@ The first cloud release (`38471031953`) stopped before migration/service updates
 - The production image smoke check also passed locally with a 512 MB memory limit and one CPU. The CSP remains unchanged.
 
 Hosted checks were read-only and did not enter credentials or trigger paid research. The local machine-readable evidence is in ignored `data/browser-toolkit-hosted-verification.json`. Production smoke checks establish readiness and expected boundaries; they do not replace the human sign-in checks described above.
+
+## Production gap closure — 15 October 2026
+
+- Connected production dynamic-page reasoning to the structured model route with atomic cost accounting, private-content consent, cancellation checks and at most four decisions per page. New controls create a draft recipe and review gate; approval/replay are required before execution. Navigation stays in the durable page frontier.
+- Authentication and state-changing controls are rejected during proposal and execution. Rendered evidence uses actual visible text; static hidden content is excluded. Worker recipe reuse now detects missing required evidence/relevance and returns to review. Completed connections no longer retain viewer capability URLs.
+- Final full local run: **34/34 E2E passed**, no action replay and no retries, including live ChatGPT agent action and evidence judgment. Run `01a13c6f-0b1c-7708-aea0-6b4d22f3306e`, duration 105.93 seconds, three model calls.
+- New planner review/approval/replay/resume flow passed **3/3 repetitions**, no retries. Run `01a13c71-8d0c-7a44-b916-b2c1e26c4c08`.
+- **115/115 backend tests passed** with disposable PostgreSQL, including tenant isolation and recovery; **18/18 frontend tests passed** and the production build passed. Backend lint, patch checks, npm audits and the pinned Python audit passed with no known vulnerabilities reported.
+- Groq accepted the new browser decision schema in a live synthetic check; accounted cost was $0.000822, with no unresolved reservation. The old OpenRouter route returned 404; a replacement free route is undergoing synthetic grounding checks before configuration promotion. Privacy and paid-credit restrictions remain unchanged.
+- The owner confirmed real password reset/sign-in and receipt of the approved monitoring test alert. Five recent scheduled recovery executions succeeded.
+
+CI, release and hosted checks for this change are recorded below when complete. Real third-party authenticated extraction/revocation and representative-site capacity/quality remain separate certification checks; this release does not claim universal site compatibility or a production availability SLA.

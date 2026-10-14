@@ -52,6 +52,67 @@ def test_auth_and_isolation(client, app):
     assert client.get(f"/api/v1/runs/{run['id']}").status_code == 200
 
 
+def test_hidden_text_is_not_visible_evidence_and_rendered_text_is_authoritative():
+    raw = {"url": "https://research.example/", "title": "Page", "status": 200, "bytes": 100,
+           "html": '<html><body>Visible<div hidden><span hidden>Hidden claim</span></div><div aria-hidden="true">Private claim</div></body></html>'}
+    parsed = parse_page(raw)
+    assert parsed["text"] == "Visible"
+    assert parse_page({**raw, "visibleText": "Actual rendered source"})["text"] == "Actual rendered source"
+
+
+@pytest.mark.parametrize("private,consent,budget,expected", [
+    (False, False, .25, True), (True, False, .25, False),
+    (True, True, .25, True), (False, False, 0, False)])
+def test_worker_browser_planner_review_and_private_consent(client, app, monkeypatch, private, consent, budget, expected):
+    import json
+    from types import SimpleNamespace
+    from cryptography.fernet import Fernet
+    from daleel.browser_planner import BrowserReview
+    from daleel.db import Secret, put, resources
+    from daleel.services import add_task
+    run = new_run(client, aiUsageCapUsd=0)
+    rid = run["id"]
+    wid = client.get("/api/v1/me").json()["workspace"]["id"]
+    app.state.settings.browser_enabled = True
+    app.state.runtime.models = SimpleNamespace(available=True)
+    app.state.settings.session_encryption_key = Fernet.generate_key().decode()
+    with app.state.database.session(wid) as db:
+        saved = resource(db, wid, rid, "run")
+        saved.data = {**saved.data, "status": "running", "aiUsageCapUsd": budget,
+                      "allowedDomains": ["research.example"], "selectedSessionDomain": "research.example" if private else None}
+        workspace = db.get(Workspace, wid)
+        workspace.data = {**workspace.data, "authenticatedContentAllowed": consent}
+        if private:
+            session = put(db, wid, "session", {"domain": "research.example", "status": "active"})
+            db.add(Secret(id=session.id, workspace_id=wid,
+                ciphertext=Fernet(app.state.settings.session_encryption_key.encode()).encrypt(json.dumps({"cookies": []}).encode()).decode()))
+        add_task(db, wid, rid, "page", {"url": "https://research.example/", "depth": 0})
+    class Fetcher:
+        async def fetch(self, *args):
+            return {"url": "https://research.example/", "html": "<html><body>Page<script></script></body></html>",
+                    "title": "Page", "bytes": 50, "status": 200}
+    seen = []
+    async def render(*args, **kwargs):
+        seen.append(kwargs["planner"])
+        if kwargs["planner"]:
+            raise BrowserReview([{"action": "click", "selector": "#expand"}])
+        raise Problem(409, "ROBOTS_DISALLOWED", "Test complete")
+    monkeypatch.setattr("daleel.browser.render_page", render)
+    claimed = app.state.runtime.claim(wid, rid)
+    asyncio.run(app.state.runtime.process(wid, rid, claimed, Fetcher()))
+    assert bool(seen[0]) is expected
+    with app.state.database.session(wid) as db:
+        saved = resource(db, wid, rid, "run")
+        recipes = resources(db, wid, "recipe")
+        if expected:
+            gate = saved.data["activeGate"]
+            assert gate["blocker"] == "browser_review" and "review_recipe" in gate["safeActions"]
+            proposal = resource(db, wid, gate["recipeId"], "recipe")
+            assert proposal.data["status"] == "draft" and proposal.data["browserSteps"][0]["selector"] == "#expand"
+        else:
+            assert not recipes
+
+
 def test_query_specific_plans_and_idempotency(client):
     body = {"query": "Find scholarship programs including eligibility, deadlines and funding", "mode": "approval", "aiUsageCapUsd": 0}
     first = client.post("/api/v1/runs", json=body, headers={"Idempotency-Key": "same-query"})

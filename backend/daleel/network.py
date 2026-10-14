@@ -168,7 +168,10 @@ def parse_page(page):
             continue
     for el in soup(["script", "style", "noscript", "nav", "footer"]):
         el.decompose()
-    content = soup.get_text(" ", strip=True)
+    for el in list(soup.select('[hidden], [aria-hidden="true"]')):
+        if el.parent is not None:
+            el.decompose()
+    content = page.get("visibleText", soup.get_text(" ", strip=True))
     lang = (soup.html.get("lang", "") if soup.html else "")
     direction = (soup.html.get("dir") if soup.html else None) or (
         "rtl" if any("\u0590" <= c <= "\u08ff" for c in content[:1000]) else "ltr")

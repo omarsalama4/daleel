@@ -432,10 +432,20 @@ class Runtime:
                 steps = recipe.get("browserSteps", []) if recipe else []
                 if steps and not self.settings.browser_enabled:
                     raise Problem(409, "RECIPE_DRIFT", "Reviewed browser recipe requires browser execution to be enabled")
-                if self.settings.browser_enabled and (steps or (len(page["text"]) < 200 and "<script" in fetched["html"])):
+                dynamic = "<script" in fetched["html"].lower()
+                model_browser = (not recipe and self.models.available and run["aiUsageCapUsd"] > 0
+                                 and (not authenticated or allowed_ai) and dynamic and not page["structured"])
+                if self.settings.browser_enabled and (steps or model_browser or (len(page["text"]) < 200 and dynamic)):
                     from .browser import render_page
+                    def check_active():
+                        with self.session(wid) as db:
+                            current_run = need(db, wid, rid, "run")
+                            if current_run.data["status"] != "running":
+                                raise Problem(409, "RUN_INTERRUPTED", "Run was paused, cancelled or requires attention")
+                    planner = (self.models, wid, run, check_active) if model_browser else None
                     page = parse_page(await render_page(fetcher, fetched, run.get("allowedDomains", []), cookies,
-                        session_state, steps=steps, seconds=min(60, run["limits"]["minutes"] * 60), max_bytes=max(1, remaining)))
+                        session_state, steps=steps, seconds=min(60, max(.01, run["limits"]["minutes"] * 60 - active_seconds(run))),
+                        max_bytes=max(1, remaining), planner=planner))
                 if recipe:
                     from .recipes import apply_recipe
                     page = apply_recipe(recipe, page)
@@ -517,11 +527,29 @@ class Runtime:
                 if not task or task.fencing_token != claimed["fence"] or task.state != "leased":
                     return
                 task.result = {"reason": exc.code, "httpStatus": exc.status}
+                if exc.code == "BROWSER_REVIEW":
+                    from .recipes import browser_code
+                    existing = next((r for r in resources(db, wid, "recipe")
+                        if r.data["site"] == hostname(task.payload["url"]) and r.data["task"] == run.data["query"]), None)
+                    if existing:
+                        recipe = copy.deepcopy(existing.data)
+                        # Do not overwrite a human-edited draft on recovery/retry.
+                    else:
+                        selector, site = "body", hostname(task.payload["url"])
+                        saved = put(db, wid, "recipe", {"site": site, "task": run.data["query"], "version": 1,
+                            "status": "draft", "fields": run.data["plan"]["fields"], "relevance": run.data["relevance"],
+                            "browserSteps": exc.steps, "actions": [
+                                {"order": 1, "type": "navigate", "target": task.payload["url"], "description": "Open scoped source"},
+                                {"order": 2, "type": "extract", "target": selector, "description": "Read visible source"}],
+                            "validation": {"samplePages": [task.payload["url"]], "outcome": "pending", "driftDetected": False},
+                            "codeExportAvailable": True, "codeSnippet": browser_code(site, task.payload["url"], exc.steps, selector),
+                            "sourceRunId": rid})
+                        recipe = copy.deepcopy(saved.data)
                 if exc.code == "DOWNLOAD_CAP":
                     run.data = {**run.data, "stopReason": "Download limit reached"}
                 gates = {"ACCESS_BARRIER": "login_mfa", "BOT_BARRIER": "captcha_bot_detector",
                         "AI_CAP_REACHED": "ai_cap_reached", "STORAGE_QUOTA": "storage_quota",
-                         "RECIPE_DRIFT": "recipe_drift"}
+                         "RECIPE_DRIFT": "recipe_drift", "BROWSER_REVIEW": "browser_review"}
                 if exc.code in gates:
                     task.state = "blocked"
                     gate = {"id": uid(), "taskId": task.id, "blocker": gates[exc.code],
@@ -534,6 +562,10 @@ class Runtime:
                             "validation": {**saved_recipe.data["validation"], "driftDetected": True, "outcome": "failed", "driftReason": exc.detail}}
                         gate["recipeId"] = recipe["id"]
                         gate["safeActions"].insert(0, "review_recipe")
+                    if exc.code == "BROWSER_REVIEW" and recipe:
+                        gate["recipeId"] = recipe["id"]
+                        gate["title"] = "Review proposed browser steps"
+                        gate["safeActions"].insert(0, "review_recipe")
                     task.result = {**task.result, "gate": gate}
                     run.data = {**run.data, "status": "needs_attention", "activeGate": run.data.get("activeGate") or gate}
                     event(db, run, "human_gate", exc.detail)
@@ -541,6 +573,9 @@ class Runtime:
                     task.state = "ready"
                     event(db, run, "retry", f"Page retry scheduled ({task.attempts})", task.payload["url"])
                 else:
+                    if exc.code == "RUN_INTERRUPTED":
+                        task.state = "ready"
+                        return
                     task.state = "skipped" if exc.code in ("ROBOTS_DISALLOWED", "UNSUPPORTED_CONTENT", "SSRF_BLOCKED", "REDIRECT_SCOPE") else "failed"
                     event(db, run, "page_skipped" if task.state == "skipped" else "page_failed", exc.detail, task.payload["url"])
         except Exception as exc:

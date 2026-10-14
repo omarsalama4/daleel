@@ -63,3 +63,5 @@ ChatGPT rejected agent calls for both GPT-6-Luna and GPT-6.1-Sol with `MODEL_PRO
 ## Browser toolkit and human sign-in coverage
 
 See [browser toolkit](BROWSER_TOOLKIT.md). Tests now cover reviewed multi-step browser recipe editing, validation, export and crawl reuse; responsive hosted-viewer controls and expiry; connection validation/retry; and operator pages. Test fixtures simulate sign-in and never automate real MFA. CI installs both the E2E runner browser and backend Playwright Chromium.
+
+The browser-planner E2E uses deterministic synthetic model decisions with the real worker, Chromium, API, database and UI: a new control becomes a review gate, no finding is saved before review, approved replay activates the recipe, and resuming produces verified details. Its provider override and configuration route live only in the excluded test harness. Backend tests separately verify private-content consent, zero AI budget, cancellation, hallucinated refs, decision limits and unsafe controls. The live ChatGPT E2E agent tests the application UI; it is separate from Daleel's configured Groq/OpenRouter providers.

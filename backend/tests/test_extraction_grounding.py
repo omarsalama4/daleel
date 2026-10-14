@@ -27,3 +27,16 @@ async def test_detail_extraction_requests_literal_values_and_retains_source_para
     assert result["values"]["description"]["value"] == paragraph
     assert result["values"]["description"]["evidenceState"] == "verified"
     assert result["evidence"][0]["excerpt"] == paragraph
+
+
+@pytest.mark.asyncio
+async def test_worker_recipe_reuse_fails_closed_on_missing_required_evidence():
+    from types import SimpleNamespace
+    from daleel.errors import Problem
+    run = {"id": "run", "query": "AI Engineer", "aiUsageCapUsd": 0, "relevance": "balanced",
+           "plan": {"fields": [{"key": "employer", "required": True}]}}
+    page = {"recipeId": "recipe", "title": "AI Engineer", "text": "AI Engineer", "structured": [],
+            "url": "https://example.org/jobs/1", "language": "en", "direction": "ltr"}
+    with pytest.raises(Problem) as error:
+        await extract_page(SimpleNamespace(available=False), "workspace", run, page)
+    assert error.value.code == "RECIPE_DRIFT"

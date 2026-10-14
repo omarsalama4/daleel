@@ -129,7 +129,7 @@ export interface HumanGate {
   id?: string;
   taskId?: string;
   recipeId?: string;
-  blocker: 'login_mfa' | 'captcha_bot_detector' | 'recipe_drift' | 'ai_cap_reached' | 'search_quota' | 'storage_quota';
+  blocker: 'login_mfa' | 'captcha_bot_detector' | 'recipe_drift' | 'browser_review' | 'ai_cap_reached' | 'search_quota' | 'storage_quota';
   title: string;
   reason: string;
   targetSite?: string;

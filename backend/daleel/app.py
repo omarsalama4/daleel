@@ -682,7 +682,7 @@ def make_app(settings=None):
                 "expiresAt": None, "connectedAt": now(), "lastValidatedAt": now()}, rid=rid)
             db.add(Secret(id=rid, workspace_id=a.workspace_id, ciphertext=encrypted))
             connection = need(db, a.workspace_id, connection_id, "connection", lock=True)
-            connection.data = {**connection.data, "state": "ready", "sessionId": rid}
+            connection.data = {**connection.data, "state": "ready", "sessionId": rid, "browserUrl": ""}
             return session.data
 
     @app.delete(prefix + "/sessions/connections/{connection_id}", status_code=204)

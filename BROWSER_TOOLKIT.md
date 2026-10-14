@@ -6,7 +6,9 @@
 
 The toolkit powers the existing renderer and reviewed multi-step recipes in validation and crawling. Recipe editing includes an optional step builder, reviewable action list, approval reset on change, version history and code export. Activation requires preview, approval and evidence-grounded replay. Drift returns to review. Task results/OpenTelemetry record action types/outcomes without input text or image data.
 
-This implements the execution/tool layer and planner adapter. The production query planner does not yet autonomously invent arbitrary browser interaction plans. Users review saved steps; a future model-driven planner can call the registry through existing model-cost and authenticated-content consent controls.
+The production worker now connects dynamic, unstructured pages to `BrowserPlanner` through the configured Groq/OpenRouter structured-output route. It can inspect, scroll, wait and extract, or propose a stable click/search/filter step. New controls create a draft recipe and a `browser_review` gate. The user reviews, previews, approves and successfully replays the recipe before resuming; subsequent crawls reuse the approved steps. Page content cannot grant permissions. This is bounded research automation; arbitrary workflows and universal site compatibility are not guaranteed.
+
+Each page permits at most four model decisions inside the browser's 60-second and run deadlines. Every call uses the existing atomic AI reservation/settlement ledger, run/monthly caps, provider fallback rules and trace redaction. Zero-budget or unconsented authenticated pages make no browser-planning calls. A paused/cancelled run is checked before and after model calls. Credentials, storage state, screenshots and input values are excluded from model observations. Navigation stays in the durable crawl frontier, preserving page/depth limits and detail enrichment.
 
 ## Planner integration
 
@@ -30,11 +32,12 @@ async with browser_tools(
 ## Boundaries and recovery
 
 - All GET/HEAD requests use the DNS-pinned transport, SSRF protection, robots rules and approved domain scope. POST/other methods, WebSockets, downloads, popups and service workers are blocked.
-- Non-link controls and search/filter inputs require reviewed selectors. Password/email/OTP inputs and visible challenges trigger human gates. Safe methods and selector review reduce risk; arbitrary sites can still misuse GET for state changes.
+- Non-link controls and search/filter inputs require reviewed selectors. Password/email/OTP inputs and visible challenges trigger human gates. Unsafe/authentication controls are rejected before proposal as well as execution. Safe methods and selector review reduce risk; arbitrary sites can still misuse GET for state changes.
 - Element references are checked against current observations and reviewed selectors. Recipes require stable selectors. Missing, ambiguous or hidden targets fail with drift errors.
 - Defaults: 30 actions, 60 seconds, 5 MB. Worker calls retain run transfer accounting/deadlines. No unlimited retries. Browser contexts are disposed on exit. Recovery replays reviewed read-only steps from the beginning.
 - Screenshots default off, need caller consent and are transient bounded outputs, excluded from recipes/traces. Proposed steps omit typed values; saved search values must be reviewed explicitly.
 - Login/MFA/CAPTCHA are human-only in the separate broker; agent callers never receive broker capabilities.
+- Rendered evidence uses the browser's visible text; static hidden/aria-hidden content is excluded. Explicit structured data remains a separate grounding source. Reused recipes that lose required evidence or relevance return to review instead of silently remaining active.
 
 ## Human sign-in
 

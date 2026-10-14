@@ -33,6 +33,12 @@ class Source(BaseHTTPRequestHandler):
         elif self.path == "/interactive":
             job = {"@type": "JobPosting", "title": "AI Engineer", "description": "Build reliable AI models in Cairo.", "hiringOrganization": {"name": "Daleel Test Labs"}}
             body = '<html><title>AI Engineer</title><body><h1>AI Engineer</h1><p>Daleel Test Labs</p><button id="expand" onclick="document.getElementById(\'details\').hidden=false">Show opportunity details</button><section id="details" hidden>Build reliable AI models in Cairo.</section><script type="application/ld+json">' + json.dumps(job) + '</script></body></html>'
+        elif self.path == "/planner":
+            job = {"@type": "JobPosting", "title": "AI Engineer", "description": "Build reliable AI models in Cairo.",
+                   "hiringOrganization": {"name": "Daleel Test Labs"}}
+            script = "const s=document.createElement('script');s.type='application/ld+json';s.textContent=" + json.dumps(json.dumps(job)) + ";document.body.appendChild(s);document.getElementById('details').hidden=false"
+            import html
+            body = '<html><title>AI Engineer</title><body><h1>AI Engineer</h1><p>Daleel Test Labs</p><button id="expand" onclick="' + html.escape(script, quote=True) + '">Show opportunity details</button><section id="details" hidden>Build reliable AI models in Cairo.</section><script>/* dynamic research fixture */</script></body></html>'
         elif self.path.startswith("/blocked"):
             body = "This source must not be fetched."
         elif self.path == "/arabic":
@@ -67,6 +73,36 @@ if __name__ == "__main__":
         try:
             app = make_app(settings)
             viewer_events = []
+            original_models = app.state.runtime.models
+
+            class SyntheticBrowserModels:
+                enabled = False
+
+                @property
+                def available(self):
+                    return self.enabled or original_models.available
+
+                async def structured(self, wid, rid, purpose, system, data, schema, **kwargs):
+                    if not self.enabled:
+                        return await original_models.structured(wid, rid, purpose, system, data, schema, **kwargs)
+                    if purpose == 'planning':
+                        from daleel.agents import default_fields
+                        return schema.model_validate({'fields': default_fields(data['query']), 'requestedCriteria': [],
+                            'inferredCriteria': [], 'searchQuery': data['query']})
+                    if purpose == 'browser_planning':
+                        target = next(e for e in data['page']['elements'] if e['selector'] == '#expand')
+                        return schema.model_validate({'action': 'click', 'ref': target['ref']})
+                    raise RuntimeError('Unexpected synthetic model call')
+
+            synthetic_models = SyntheticBrowserModels()
+            app.state.runtime.models = synthetic_models
+            # The application planning endpoint retains its original provider instance;
+            # query schema falls back deterministically with its empty test credentials.
+
+            @app.post('/api/__e2e__/browser-planner/{enabled}')
+            def synthetic_browser_planner(enabled: bool):
+                synthetic_models.enabled = enabled
+                return {'enabled': enabled}
 
             @app.middleware('http')
             async def viewer_policy(request, call_next):

@@ -163,6 +163,22 @@ class BrowserToolkit:
         except ValidationError:
             return {"ok": False, "error": {"code": "BROWSER_ARGUMENTS", "message": "Invalid browser tool arguments", "retryable": False}}
 
+    async def validate_control(self, action, target, *, require_approval=True):
+        """Shared policy for both proposed and executed controls; proposals grant no authority."""
+        if action.action in ("fill", "select"):
+            sensitive = await target.evaluate("e => e.matches('input[type=password],input[type=email],input[autocomplete=one-time-code]') || /password|otp|token|verification|authenticat/i.test([e.id,e.name,e.autocomplete,e.getAttribute('aria-label')].join(' ')) || !!e.closest('form[action*=login],form[action*=signin]')")
+            if sensitive:
+                raise Problem(403, "ACCESS_BARRIER", "Authentication input is human-only")
+            if require_approval and action.selector not in self.search_selectors:
+                raise Problem(403, "BROWSER_INPUT_APPROVAL", "Search/filter input requires a reviewed selector")
+        elif action.action == "click":
+            unsafe = await target.evaluate("e => {const f=e.closest('form');const name=e.getAttribute('aria-label')||e.innerText||'';return /delete|purchase|checkout|subscribe|send message|apply now|sign.?in|log.?in|password|verify code/i.test(name) || e.matches('input[type=submit],input[type=file]') || !!(f && (e.type==='submit' || e.tagName==='BUTTON') && (f.method||'get').toLowerCase()!=='get')}")
+            if unsafe:
+                raise Problem(403, "BROWSER_WRITE_BLOCKED", "This control may change site data")
+            safe_link = await target.evaluate("e => e.tagName==='A' && !!e.getAttribute('href')")
+            if require_approval and not safe_link and action.selector not in self.click_selectors:
+                raise Problem(403, "BROWSER_CLICK_APPROVAL", "This interactive control requires a reviewed selector")
+
     async def run(self, url, decide):
         """Planner adapter: decide(observation, last_result) returns an action or None.
 
@@ -173,8 +189,11 @@ class BrowserToolkit:
         last_result = None
         while True:
             self.check()
-            async with asyncio.timeout(max(0.01, self.deadline-time.monotonic())):
-                decision = await decide(observation, last_result)
+            try:
+                async with asyncio.timeout(max(0.01, self.deadline-time.monotonic())):
+                    decision = await decide(observation, last_result)
+            except TimeoutError:
+                raise Problem(409, "BROWSER_TIMEOUT", "Browser planning time allowance reached") from None
             if decision is None:
                 return {**await self.snapshot(), "proposedSteps": list(self.replay_steps)}
             last_result = await self.call(decision)
@@ -215,23 +234,13 @@ class BrowserToolkit:
             if action.ref and previous_refs.get(action.ref) != self.refs.get(action.ref):
                 raise Problem(409, "BROWSER_STALE_REF", "Page changed; observe before choosing an action")
             target = await self.target(action)
+            await self.validate_control(action, target)
             if action.action in ("fill", "select"):
-                if action.selector not in self.search_selectors:
-                    raise Problem(403, "BROWSER_INPUT_APPROVAL", "Search/filter input requires a reviewed selector")
-                sensitive = await target.evaluate("e => e.matches('input[type=password],input[type=email],input[autocomplete=one-time-code]') || /password|otp|token|verification|authenticat/i.test([e.id,e.name,e.autocomplete,e.getAttribute('aria-label')].join(' ')) || !!e.closest('form[action*=login],form[action*=signin]')")
-                if sensitive:
-                    raise Problem(403, "ACCESS_BARRIER", "Authentication input is human-only")
                 if action.action == "fill":
                     await target.fill(action.text or "", timeout=5000)
                 else:
                     await target.select_option(action.text or "", timeout=5000)
             elif action.action == "click":
-                safe_link = await target.evaluate("e => e.tagName==='A' && !!e.getAttribute('href')")
-                if not safe_link and action.selector not in self.click_selectors:
-                    raise Problem(403, "BROWSER_CLICK_APPROVAL", "This interactive control requires a reviewed selector")
-                unsafe = await target.evaluate("e => {const f=e.closest('form');const name=e.getAttribute('aria-label')||e.innerText||'';return /delete|purchase|checkout|subscribe|send message|apply now|sign.?in|log.?in|password|verify code/i.test(name) || e.matches('input[type=submit],input[type=file]') || !!(f && (e.type==='submit' || e.tagName==='BUTTON') && (f.method||'get').toLowerCase()!=='get')}")
-                if unsafe:
-                    raise Problem(403, "BROWSER_WRITE_BLOCKED", "This control may change site data")
                 await target.click(timeout=5000)
             elif action.action == "wait":
                 await target.wait_for(state="visible", timeout=5000)
@@ -241,12 +250,12 @@ class BrowserToolkit:
         return await self.observe()
 
     async def snapshot(self):
-        await self.observe()
+        observation = await self.observe()
         html = await self.page.content()
         if len(html.encode()) > self.fetcher.settings.max_page_bytes:
             raise Problem(413, "PAGE_BYTE_LIMIT", "Rendered document exceeds page size allowance")
         return {"url": self.page.url, "html": html, "title": await self.page.title(), "rendered": True,
-                "bytes": self.bytes, "status": 200, "browserTrace": list(self.records)}
+                "visibleText": observation["text"], "bytes": self.bytes, "status": 200, "browserTrace": list(self.records)}
 
 
 @asynccontextmanager

@@ -156,7 +156,10 @@ async def extract_page(models, wid, run, page, authenticated=False):
             "including geography. Explain briefly with evidence; do not reveal private reasoning.",
             {"query": run["query"], "sensitivity": run["relevance"], "fields": fields,
              "sourceText": (page.get("recipeText") or page["text"])[:24_000], "sourceUrl": page["url"]}, Extracted, max_tokens=3000)
-    return verify_result(result, page, fields, run)
+    checked = verify_result(result, page, fields, run)
+    if page.get("recipeId") and checked["status"] != "relevant":
+        raise Problem(409, "RECIPE_DRIFT", "Reused recipe no longer supports every required field and query relevance; review before continuing")
+    return checked
 
 
 def verify_result(result, page, fields, run):

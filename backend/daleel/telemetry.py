@@ -28,7 +28,7 @@ def safe_span(span):
     action = span.attributes.get("browser.action")
     if action in ("navigate", "observe", "click", "fill", "select", "scroll", "wait", "extract", "back", "screenshot"):
         attrs["browser.action"] = action
-    name = span.name if span.name in ("crawl.page", "model.planning", "model.extraction", "browser.action") else "http.request"
+    name = span.name if span.name in ("crawl.page", "model.planning", "model.extraction", "model.browser_planning", "browser.action") else "http.request"
     # Drop events, links, status descriptions and arbitrary resource attributes:
     # exception messages and URL paths can contain authentication capabilities.
     resource = Resource({key: value for key, value in span.resource.attributes.items()

@@ -1,6 +1,14 @@
-# Daleel production readiness — 2026-10-13
+# Daleel production readiness — updated 2026-10-15
 
 **Status: hosted beta deployed; full production verification is incomplete.**
+
+## 15 October readiness update
+
+- The owner confirmed that the real Forgot password flow completed and sign-in succeeded, and that the single Google Cloud monitoring verification alert was received. These two account checks are complete by owner confirmation.
+- The latest five scheduled recovery executions inspected on 15 October all succeeded: `daleel-recovery-4wslr`, `6dqlq`, `b4dqv`, `qtsnr`, and `zrfdm` (each name has the same `daleel-recovery-` prefix).
+- Implemented production browser model decisions, consent and budget enforcement, reviewable generated recipe steps, cancellation checks, bounded decisions/time, safer proposed-control validation, authoritative visible text, and strict drift detection during worker recipe reuse. See [browser architecture](BROWSER_TOOLKIT.md).
+- Local verification after these changes: **115 backend/PostgreSQL checks passed**, **18 frontend unit checks passed**. Final E2E and deployment results are recorded in [verification](E2E_VERIFICATION.md).
+- Readiness remains scoped to the private hosted beta and its supported read-only workflows. A real authenticated site adapter still needs a successful human connection/extraction/revocation check; passing synthetic tests does not certify GitHub or every target site. Free provider capacity, a six-hour restore window and ephemeral broker connections remain explicit service constraints. Wider production scale needs a capacity/SLO decision and representative load verification.
 
 Application: https://daleel-api-530191092817.europe-west1.run.app
 
@@ -57,9 +65,9 @@ The approved Groq/OpenRouter/Tavily keys are configured in the designated runtim
 ## Remaining gates
 
 1. The viewer image correction passed live rendering, but GitHub human login validation still failed on an account-security page. GitHub target-site login is optional and separate from deployment federation; no changes to account MFA are required. Authenticated extraction/session revocation remain unverified. The Computer Use skill prohibits automating authentication.
-2. Verify real password-reset email, completion and sign-in; confirm receipt of the single approved monitoring test alert.
-3. Validate strict recipe replay after deployment, including complete required fields and drift. Prior preview/approval/replay passed under the older permissive success check; that alone does not establish complete extraction.
-4. Extend opportunity quality evaluation to discovery-to-detail enrichment, duplicate opportunities and representative sites. Current live detail extraction and multilingual grounding checks are bounded evidence, not a broad quality benchmark.
+2. Password-reset completion/sign-in and monitoring delivery are complete by owner confirmation on 15 October.
+3. Strict preview/approval/replay and worker reuse are covered by real Chromium E2E and missing-field/drift regression tests. The production release still needs its final smoke checks recorded for the current commit.
+4. Discovery-to-detail enrichment and duplicate opportunities are covered by the E2E fixtures. Current live detail extraction and multilingual grounding checks are bounded evidence; representative live-site quality remains a continuing acceptance check, not a broad quality benchmark.
 5. Free provider capacity has no guaranteed availability. Neon recovery history is six hours subject to quotas. Broker connections are ephemeral across revisions/restarts, with max one instance; users must reconnect after interruption. Wider production scale and longer recovery guarantees need separately tested infrastructure and a chosen service-level target.
 
 Detailed reports and credentials remain in an ignored, ACL-protected local directory. Individual passing checks do not establish complete production readiness.
