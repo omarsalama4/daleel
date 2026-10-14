@@ -56,6 +56,7 @@ jobs:
           MIGRATION_SECRET_VERSION: ${{ vars.MIGRATION_SECRET_VERSION }}
           BROKER_SECRET_VERSION: ${{ vars.BROKER_SECRET_VERSION }}
           AUTH_URL: ${{ vars.NEON_AUTH_URL }}
+          OPENROUTER_FREE_MODEL: ${{ vars.OPENROUTER_FREE_MODEL || 'dots-studio/dots-3-note-preview:free' }}
         run: |
           python - <<'PY'
           import os, re
@@ -66,6 +67,8 @@ jobs:
               raise SystemExit('Deployment project and region must be configured')
           if not os.environ.get('AUTH_URL', '').startswith('https://'):
               raise SystemExit('Neon Auth requires a configured HTTPS origin')
+          if not re.fullmatch(r'[a-z0-9_.-]+/[a-z0-9_.-]+:free', os.environ.get('OPENROUTER_FREE_MODEL', '')):
+              raise SystemExit('OpenRouter override must pin an explicit free model')
           print('Deployment configuration preflight passed')
           PY
       - name: Verify deployment identity claims
@@ -131,22 +134,23 @@ jobs:
           SCHEDULER_ACCOUNT: ${{ vars.GCP_SCHEDULER_SERVICE_ACCOUNT }}
           RUNTIME_SECRET_VERSION: ${{ vars.RUNTIME_SECRET_VERSION }}
           MIGRATION_SECRET_VERSION: ${{ vars.MIGRATION_SECRET_VERSION }}
+          OPENROUTER_FREE_MODEL: ${{ vars.OPENROUTER_FREE_MODEL || 'dots-studio/dots-3-note-preview:free' }}
         run: |
           test -n "$RUNTIME_SECRET_VERSION" && test -n "$MIGRATION_SECRET_VERSION"
           test "$RUNTIME_SECRET_VERSION" != latest && test "$MIGRATION_SECRET_VERSION" != latest
           IMAGE="$REGION-docker.pkg.dev/$PROJECT/daleel/backend:$GITHUB_SHA"
           gcloud run jobs deploy daleel-migrate --project="$PROJECT" --region="$REGION" --image="$IMAGE" --command=sh --args=-c,'python -m alembic -c /app/alembic.ini upgrade head && python -m daleel.bootstrap' --tasks=1 --max-retries=0 --task-timeout=10m --service-account="$MIGRATION_ACCOUNT" --set-secrets=DALEEL_MIGRATION_DATABASE_URL=daleel-migration-database:$MIGRATION_SECRET_VERSION
           gcloud run jobs execute daleel-migrate --project="$PROJECT" --region="$REGION" --wait
-          gcloud run jobs deploy daleel-worker --project="$PROJECT" --region="$REGION" --image="$IMAGE" --command=python --args=-m,daleel.worker --tasks=1 --parallelism=1 --max-retries=0 --task-timeout=30m --memory=2Gi --cpu=1 --service-account="$RUNTIME_ACCOUNT" --set-secrets=/var/secrets/daleel/runtime.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION --set-env-vars=DALEEL_CONFIG_FILE=/var/secrets/daleel/runtime.env
+          gcloud run jobs deploy daleel-worker --project="$PROJECT" --region="$REGION" --image="$IMAGE" --command=python --args=-m,daleel.worker --tasks=1 --parallelism=1 --max-retries=0 --task-timeout=30m --memory=2Gi --cpu=1 --service-account="$RUNTIME_ACCOUNT" --set-secrets=/var/secrets/daleel/runtime.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION --set-env-vars="DALEEL_CONFIG_FILE=/var/secrets/daleel/runtime.env,DALEEL_OPENROUTER_MODEL=$OPENROUTER_FREE_MODEL"
           gcloud run jobs add-iam-policy-binding daleel-worker --project="$PROJECT" --region="$REGION" --member="serviceAccount:$RUNTIME_ACCOUNT" --role=roles/run.jobsExecutorWithOverrides
-          gcloud run jobs deploy daleel-recovery --project="$PROJECT" --region="$REGION" --image="$IMAGE" --command=python --args=-m,daleel.worker,--recover --tasks=1 --max-retries=0 --task-timeout=10m --service-account="$RUNTIME_ACCOUNT" --set-secrets=/var/secrets/daleel/runtime.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION --set-env-vars=DALEEL_CONFIG_FILE=/var/secrets/daleel/runtime.env
+          gcloud run jobs deploy daleel-recovery --project="$PROJECT" --region="$REGION" --image="$IMAGE" --command=python --args=-m,daleel.worker,--recover --tasks=1 --max-retries=0 --task-timeout=10m --service-account="$RUNTIME_ACCOUNT" --set-secrets=/var/secrets/daleel/runtime.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION --set-env-vars="DALEEL_CONFIG_FILE=/var/secrets/daleel/runtime.env,DALEEL_OPENROUTER_MODEL=$OPENROUTER_FREE_MODEL"
           gcloud run jobs add-iam-policy-binding daleel-recovery --project="$PROJECT" --region="$REGION" --member="serviceAccount:$SCHEDULER_ACCOUNT" --role=roles/run.invoker
           READY_REVISION=$(gcloud run services describe daleel-api --project="$PROJECT" --region="$REGION" --format='value(status.latestReadyRevisionName)' 2>/dev/null || true)
           if test -n "$READY_REVISION"; then
-            gcloud run deploy daleel-api --project="$PROJECT" --region="$REGION" --image="$IMAGE" --memory=512Mi --cpu=1 --max-instances=2 --concurrency=20 --service-account="$RUNTIME_ACCOUNT" --set-secrets=/var/secrets/daleel/runtime.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION --set-env-vars=DALEEL_CONFIG_FILE=/var/secrets/daleel/runtime.env --no-traffic --tag candidate
+            gcloud run deploy daleel-api --project="$PROJECT" --region="$REGION" --image="$IMAGE" --memory=512Mi --cpu=1 --max-instances=2 --concurrency=20 --service-account="$RUNTIME_ACCOUNT" --set-secrets=/var/secrets/daleel/runtime.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION --set-env-vars="DALEEL_CONFIG_FILE=/var/secrets/daleel/runtime.env,DALEEL_OPENROUTER_MODEL=$OPENROUTER_FREE_MODEL" --no-traffic --tag candidate
           else
             # A first revision cannot use --no-traffic. Keep it private until smoke passes.
-            gcloud run deploy daleel-api --project="$PROJECT" --region="$REGION" --image="$IMAGE" --memory=512Mi --cpu=1 --max-instances=2 --concurrency=20 --service-account="$RUNTIME_ACCOUNT" --set-secrets=/var/secrets/daleel/runtime.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION --set-env-vars=DALEEL_CONFIG_FILE=/var/secrets/daleel/runtime.env --no-allow-unauthenticated --tag candidate
+            gcloud run deploy daleel-api --project="$PROJECT" --region="$REGION" --image="$IMAGE" --memory=512Mi --cpu=1 --max-instances=2 --concurrency=20 --service-account="$RUNTIME_ACCOUNT" --set-secrets=/var/secrets/daleel/runtime.env=daleel-runtime-env:$RUNTIME_SECRET_VERSION --set-env-vars="DALEEL_CONFIG_FILE=/var/secrets/daleel/runtime.env,DALEEL_OPENROUTER_MODEL=$OPENROUTER_FREE_MODEL" --no-allow-unauthenticated --tag candidate
           fi
           CANDIDATE=$(gcloud run services describe daleel-api --project="$PROJECT" --region="$REGION" --format=json | python -c 'import json,sys; print(next(t["url"] for t in json.load(sys.stdin)["status"]["traffic"] if t.get("tag")=="candidate"))')
           echo "candidate_url=$CANDIDATE" >> "$GITHUB_OUTPUT"

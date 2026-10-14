@@ -5,6 +5,7 @@
   "GCP_BUILD_SOURCE_BUCKET": "daleel-prod-20261006-c719-build-source",
   "NEON_AUTH_URL": "",
   "RUNTIME_SECRET_VERSION": "",
+  "OPENROUTER_FREE_MODEL": "dots-studio/dots-3-note-preview:free",
   "MIGRATION_SECRET_VERSION": "",
   "GCP_DEPLOY_SERVICE_ACCOUNT": "daleel-deploy@daleel-prod-20261006-c719.iam.gserviceaccount.com",
   "GCP_RUNTIME_SERVICE_ACCOUNT": "daleel-runtime@daleel-prod-20261006-c719.iam.gserviceaccount.com",

@@ -75,6 +75,8 @@ The broker's HTTPS viewer is publicly reachable only through an expiring capabil
 
 ## Release gate
 
+The runtime's non-secret `DALEEL_OPENROUTER_MODEL` environment setting overrides the model in the pinned environment secret. `OPENROUTER_FREE_MODEL` in the beta GitHub environment can select an explicit `:free` model; the workflow defaults to the synthetically verified `dots-studio/dots-3-note-preview:free` route. Preflight rejects malformed/non-free overrides. API, worker and recovery receive the same value. Changing this setting requires provider/grounding verification; it does not change keys, privacy restrictions, account paid-credit limits or AI caps. A previous configured route returned HTTP 404 on 15 October. Free routing availability remains best effort.
+
 See the current gates and observed evidence in `PRODUCTION_READINESS.md`. Operator sign-in/invitation, PostgreSQL isolation/restore, hosted worker recovery, private storage and live provider setup have passed. Password-reset completion, authenticated target-site validation and broader quality checks remain pending. Build success alone does not establish complete readiness.
 
 
