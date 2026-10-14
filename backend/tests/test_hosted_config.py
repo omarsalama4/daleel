@@ -97,4 +97,3 @@ def test_release_preflight_rejects_nonfree_or_injected_model_override(model, acc
              'MIGRATION_SECRET_VERSION': '1', 'BROKER_SECRET_VERSION': '3', 'AUTH_URL': 'https://auth.invalid',
              'OPENROUTER_FREE_MODEL': model})
     assert (result.returncode == 0) is accepted
-
