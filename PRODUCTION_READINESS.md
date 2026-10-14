@@ -1,6 +1,6 @@
 # Daleel production readiness — updated 2026-10-15
 
-**Status: hosted beta deployed; full production verification is incomplete.**
+**Status: verified private hosted beta for public read-only research and reviewed browser recipes. Authenticated crawling is explicitly deferred and uncertified at the owner's request. Universal site compatibility and a general-availability SLA are not claimed.**
 
 ## 15 October readiness update
 
@@ -8,7 +8,9 @@
 - The latest five scheduled recovery executions inspected on 15 October all succeeded: `daleel-recovery-4wslr`, `6dqlq`, `b4dqv`, `qtsnr`, and `zrfdm` (each name has the same `daleel-recovery-` prefix).
 - Implemented production browser model decisions, consent and budget enforcement, reviewable generated recipe steps, cancellation checks, bounded decisions/time, safer proposed-control validation, authoritative visible text, and strict drift detection during worker recipe reuse. See [browser architecture](BROWSER_TOOLKIT.md).
 - Local verification after these changes: **120 backend/PostgreSQL checks passed**, **18 frontend unit checks passed**. The browser planner passed full UI verification and three repetitions. Chromium admission bounds concurrent browser memory pressure. Final E2E and deployment results are recorded in [verification](E2E_VERIFICATION.md).
-- Readiness remains scoped to the private hosted beta and its supported read-only workflows. A real authenticated site adapter still needs a successful human connection/extraction/revocation check; passing synthetic tests does not certify GitHub or every target site. Free provider capacity, a six-hour restore window and ephemeral broker connections remain explicit service constraints. Wider production scale needs a capacity/SLO decision and representative load verification.
+- [Release 38646602689](https://github.com/omarsalama4/daleel/actions/runs/38646602689) succeeded at `3fef0ab`. API `daleel-api-00019-qok` and broker `daleel-broker-00010-lqw` each serve 100% traffic; worker and recovery use the same image. All **13 hosted smoke checks passed**, and the tested free OpenRouter override is present on API/worker/recovery. Runtime secret pin remains version 4.
+- Post-deployment recovery execution `daleel-recovery-flxxr` succeeded against Neon with the released image/configuration.
+- Readiness remains scoped to the private hosted beta and its supported read-only workflows. On 15 October the owner explicitly deferred authenticated crawling certification. A real authenticated site adapter needs a successful human connection/extraction/revocation check; passing synthetic tests does not certify GitHub or every target site. Free provider capacity, a six-hour restore window and ephemeral broker connections remain explicit service constraints. Wider production scale needs a capacity/SLO decision and representative load verification.
 
 Application: https://daleel-api-530191092817.europe-west1.run.app
 
@@ -43,7 +45,7 @@ Application: https://daleel-api-530191092817.europe-west1.run.app
 The approved Groq/OpenRouter/Tavily keys are configured in the designated runtime secret and ignored ACL-protected local configuration. No provider credentials are committed or printed.
 
 - Groq: dedicated Daleel project, `openai/gpt-oss-120b`; current catalog and structured Arabic output passed. Conservative accounting ceilings remain $1 input/$3 output per million tokens, above the observed published $0.15/$0.60 rates. Free account allowances still apply.
-- OpenRouter: explicit `apodex/apodex-1.1-mini:free`, key paid-credit limit $0, free-tier status verified. Structured output passed with `data_collection=deny` and provider fallbacks disabled. Other free endpoints returned upstream 429 or no privacy-compatible endpoint; free availability is not guaranteed.
+- OpenRouter: the earlier `apodex/apodex-1.1-mini:free` route returned 404 on 15 October. Its replacement `dots-studio/dots-3-note-preview:free` passed browser decisions and synthetic English/Arabic/French grounding under `data_collection=deny` and disabled provider fallbacks. The release sets only the non-secret model override; the key's paid-credit limit stays $0. Other free endpoints returned 429 or no compatible route; free availability is not guaranteed. See [OpenRouter provider routing](https://openrouter.ai/docs/guides/routing/provider-selection) for the privacy filter semantics.
 - Tavily: dedicated Daleel key, 1,000-credit monthly limit and pay-as-you-go disabled. Live discovery passed locally and in the hosted worker.
 - A bounded hosted query performed search and three model extractions, respected robots policy and rejected unrelated marketing pages. Ledger charges settled without uncertain reservations. It reported partial frontier coverage, not successful job discovery.
 - Current job detail pages produced supported title, employer, location, description and skills after the literal-extraction prompt correction. Full hosted evidence and reconciled test usage were checked; all synthetic cloud fixtures were removed.
@@ -62,11 +64,11 @@ The approved Groq/OpenRouter/Tavily keys are configured in the designated runtim
 - Recovery failure at 2026-10-13 01:15 UTC: PostgreSQL reported `57P01 AdminShutdown`, terminating the connection during the read-only role/RLS startup check. The exact provider-side administrative trigger is not established by the log. Pool pre-ping could not prevent a termination after checkout. Bounded retries now repeat only the read-only validation with a fresh connection; a persistent outage still fails and alerts.
 - Google Cloud alerts are triggered by matching ERROR logs, not necessarily a frontend outage. The old email's “No severity” is an unset incident classification. Alert instructions were corrected from five-minute recovery to the actual fifteen-minute schedule and distinguish the single user-approved synthetic delivery test. Historical emails retain their original text.
 
-## Remaining gates
+## Deferred certification and accepted service constraints
 
-1. The viewer image correction passed live rendering, but GitHub human login validation still failed on an account-security page. GitHub target-site login is optional and separate from deployment federation; no changes to account MFA are required. Authenticated extraction/session revocation remain unverified. The Computer Use skill prohibits automating authentication.
+1. Authenticated crawling certification was explicitly deferred by the owner on 15 October. The viewer image correction passed live rendering, but the earlier GitHub human login validation failed on an account-security page. GitHub target-site login is optional and separate from deployment federation; no changes to account MFA are required. Live authenticated extraction/session revocation remain unverified; synthetic consent/isolation tests passed.
 2. Password-reset completion/sign-in and monitoring delivery are complete by owner confirmation on 15 October.
-3. Strict preview/approval/replay and worker reuse are covered by real Chromium E2E and missing-field/drift regression tests. The production release still needs its final smoke checks recorded for the current commit.
+3. Strict preview/approval/replay and worker reuse are covered by real Chromium E2E and missing-field/drift regression tests. The current production release passed candidate readiness, access boundaries, image/settings/traffic identity checks and 13 hosted smoke checks.
 4. Discovery-to-detail enrichment and duplicate opportunities are covered by the E2E fixtures. Current live detail extraction and multilingual grounding checks are bounded evidence; representative live-site quality remains a continuing acceptance check, not a broad quality benchmark.
 5. Free provider capacity has no guaranteed availability. Neon recovery history is six hours subject to quotas. Broker connections are ephemeral across revisions/restarts, with max one instance; users must reconnect after interruption. Wider production scale and longer recovery guarantees need separately tested infrastructure and a chosen service-level target.
 

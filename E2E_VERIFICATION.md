@@ -88,3 +88,17 @@ Hosted checks were read-only and did not enter credentials or trigger paid resea
 CI, release and hosted checks for this change are recorded below when complete. Real third-party authenticated extraction/revocation and representative-site capacity/quality remain separate certification checks; this release does not claim universal site compatibility or a production availability SLA.
 
 Final resource review added bounded Chromium admission to prevent overlapping launches exhausting API memory. Busy admission preserves approved recipes and releases capacity after failure. The final backend/PostgreSQL suite, including model override/preflight and browser capacity regression checks, passed **120/120** tests.
+
+The final full E2E rerun after browser admission passed **34/34** cases, with no retries/action replay (run `01a13c79-820a-7d79-9cba-7c644fb5c170`, 108.50 seconds, four live ChatGPT calls). Exact-release [Build](https://github.com/omarsalama4/daleel/actions/runs/38646111377) and [Browser E2E](https://github.com/omarsalama4/daleel/actions/runs/38646111330) passed at `3fef0ab6849b80153fd8de63acee10a973a5cf8f`.
+
+A separate bounded public evaluation discovered ten results from each of three job platforms and attempted one selected source per platform. Lever produced all three required supported fields and an opportunity description. Greenhouse redirected outside the selected scope and was rejected. Ashby did not produce a relevant complete finding after constrained rendering. Accounted AI usage was $0.008647, with no unresolved reservations; no production data was touched. This is a limited live sample with mixed outcomes, not a broad site-compatibility pass. Evidence is in ignored `data/live-opportunity-quality.json`.
+
+The owner explicitly deferred real authenticated crawling certification. A read-only operational check found no matching ERROR logs across the API, broker, worker and recovery resources during the preceding 24 hours.
+
+### Successful release and hosted verification
+
+- [Deploy beta 38646602689](https://github.com/omarsalama4/daleel/actions/runs/38646602689) completed successfully for `3fef0ab6849b80153fd8de63acee10a973a5cf8f`, including its repeated browser/backend/frontend checks, production image build/verification, migration, candidate checks and traffic promotion.
+- API `daleel-api-00019-qok` and broker `daleel-broker-00010-lqw` serve 100% traffic. API, broker, worker and recovery all use that release image. API/worker/recovery use `dots-studio/dots-3-note-preview:free`; the separate broker receives no model override or credentials.
+- **13/13 hosted smoke checks passed**: readiness, API auth, test-only snapshot/viewer/planner hook exclusion, unknown viewer capability/status rejection, broker service auth, sign-in shell and the three released UI components. The planner-hook POST correctly returns 405 through the GET-only fallback; GET returns 404. The initial smoke expectation of POST 404 was corrected without changing application routing.
+- Read-only release evidence is in ignored `data/production-release-resources.json` and `data/browser-toolkit-hosted-verification.json`. No production runtime secret was exported; its version-4 pin is unchanged.
+- Normal post-deployment recovery execution `daleel-recovery-flxxr` completed successfully against Neon using the new image and model override. The disposable PostgreSQL verification container was removed; unrelated local containers were left untouched.
